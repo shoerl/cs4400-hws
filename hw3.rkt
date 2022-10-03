@@ -160,7 +160,14 @@
 (test (run "{with {x 5} {+ x {with {y 3} x}}}") => '(10))
 (test (run "{with {x 5} {with {y x} y}}") => '(5))
 (test (run "{with {x 5} {with {x x} x}}") => '(5))
+
 (test (run "{with {x 1} y}") =error> "free identifier")
+(test (run "{with {x 3 2 4} {+ x 3}}")
+      =error>
+      "bad `with' syntax in (with (x 3 2 4) (+ x 3))")
+(test (run "{dog {x 3 2 4} {+ x 3}}")
+      =error>
+      "bad syntax in (dog (x 3 2 4) (+ x 3))")
 
 (test (run "{with {x {sqrt 9}} {+ x 1}}") => '(4 -2))
 (test (run "{with {x {sqrt 0}} {+ x 10}}") => '(10 10))
@@ -168,6 +175,8 @@
       =>
       '(15 -9 9 -15))
 (test (run "{with {x {sqrt 9}} {+ x {sqrt 64}}}") => '(11 -5 5 -11))
+(test (run "{with {x {sqrt 16}} {* 15 x}}") => '(60 -60))
+(test (run "{with {x {sqrt 25}} {/ 400 x}}") => '(80 -80))
 
 (test (run "{sqrt 9}") => '(3 -3))
 (test (run "{sqrt 1}") => '(1 -1))
@@ -176,4 +185,6 @@
 
 (test (run "{+ {sqrt 1} 3}") => '(4 2))
 (test (run "{+ {/ {+ {sqrt 1} 3} 2} {sqrt 100}}") => '(12 -8 11 -9))
-(test (run "{sqrt {+ 16 {* {+ 1 {sqrt 1}} {/ 9 2}}}}") => '(5 -5 4 -4))
+(test (run "{sqrt {+ 16 {* {+ 1 {sqrt 1}} {/ 9 2}}}}")
+      =>
+      '(5 -5 4 -4))
