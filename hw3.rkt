@@ -15,20 +15,20 @@
 
 ;; MUWAE abstract syntax trees
 (define-type MUWAE
-  [Num  (Listof Number)]
-  [Add  MUWAE MUWAE]
-  [Sub  MUWAE MUWAE]
-  [Mul  MUWAE MUWAE]
-  [Div  MUWAE MUWAE]
-  [Sqrt MUWAE]
-  [Id   Symbol]
-  [With Symbol MUWAE MUWAE])
+             [Num (Listof Number)]
+             [Add MUWAE MUWAE]
+             [Sub MUWAE MUWAE]
+             [Mul MUWAE MUWAE]
+             [Div MUWAE MUWAE]
+             [Sqrt MUWAE]
+             [Id Symbol]
+             [With Symbol MUWAE MUWAE])
 
 (: parse-sexpr : Sexpr -> MUWAE)
 ;; parses s-expressions into MUWAEs
 (define (parse-sexpr sexpr)
   (match sexpr
-    [(number: n)    (Num (list n))]
+    [(number: n) (Num (list n))]
     [(symbol: name) (Id name)]
     [(cons 'with more)
      (match sexpr
@@ -68,35 +68,39 @@
 ;; expression contains no free instances of the second argument
 (define (subst expr from to)
   (cases expr
-    [(Num n) expr]
-    [(Add l r) (Add (subst l from to) (subst r from to))]
-    [(Sub l r) (Sub (subst l from to) (subst r from to))]
-    [(Mul l r) (Mul (subst l from to) (subst r from to))]
-    [(Div l r) (Div (subst l from to) (subst r from to))]
-    [(Sqrt l) (Sqrt (subst l from to))]
-    [(Id name) (if (eq? name from) to expr)]
-    [(With bound-id named-expr bound-body)
-     (With bound-id
-           (subst named-expr from to)
-           (if (eq? bound-id from)
-             bound-body
-             (subst bound-body from to)))]))
-
+         [(Num n) expr]
+         [(Add l r) (Add (subst l from to) (subst r from to))]
+         [(Sub l r) (Sub (subst l from to) (subst r from to))]
+         [(Mul l r) (Mul (subst l from to) (subst r from to))]
+         [(Div l r) (Div (subst l from to) (subst r from to))]
+         [(Sqrt l) (Sqrt (subst l from to))]
+         [(Id name) (if (eq? name from) to expr)]
+         [(With bound-id named-expr bound-body)
+          (With bound-id
+                (subst named-expr from to)
+                (if (eq? bound-id from)
+                    bound-body
+                    (subst bound-body from to)))]))
 
 (: sqrt+ : (Listof Number) -> (Listof Number))
 ;; a version of `sqrt' that takes a list of numbers, and return a
 ;; list with twice the elements, holding the two roots of each of
 ;; the inputs; throws an error if any input is negative.
 (define (sqrt+ ns)
-  (cond [(null? ns) null]
-        [(< (first ns) 0) (error 'eval "requires a non-negative input")]
-        [else (let ([slv (sqrt (first ns))]) (cons slv (cons (- 0 slv) (sqrt+ (rest ns)))))]))
+  (cond
+    [(null? ns) null]
+    [(< (first ns) 0) (error 'eval "requires a non-negative input")]
+    [else
+     (let ([slv (sqrt (first ns))])
+       (cons slv (cons (- 0 slv) (sqrt+ (rest ns)))))]))
 
-
-
-(: bin-op :
-   (Number Number -> Number) (Listof Number) (Listof Number)
-   -> (Listof Number))
+(: bin-op
+   :
+   (Number Number -> Number)
+   (Listof Number)
+   (Listof Number)
+   ->
+   (Listof Number))
 ;; applies a binary numeric function on all combinations
 ;; of numbers from the two input lists, and return the
 ;; list of all of the results
@@ -104,12 +108,12 @@
   (: helper : Number (Listof Number) -> (Listof Number))
   (define (helper l rs)
     (: f : Number -> Number)
-    (define (f r) (op l r))
+    (define (f r)
+      (op l r))
     (map f rs))
   (if (null? ls)
-    null
-    (append (helper (first ls) rs) (bin-op op (rest ls) rs))))
-
+      null
+      (append (helper (first ls) rs) (bin-op op (rest ls) rs))))
 
 #| Formal specs for `eval':
      eval(N)         = N
@@ -126,22 +130,22 @@
 ;; evaluates MUWAE expressions by reducing them to numbers
 (define (eval expr)
   (cases expr
-    [(Num n) n]
-    [(Add l r) (bin-op + (eval l) (eval r))]
-    [(Sub l r) (bin-op - (eval l) (eval r))]
-    [(Mul l r) (bin-op * (eval l) (eval r))]
-    [(Div l r) (bin-op / (eval l) (eval r))]
-    [(Sqrt e) (sqrt+ (eval e))]
-    [(With bound-id named-expr bound-body)
-     (eval (subst bound-body
-                  bound-id
-                  (Num (eval named-expr))))]
-    [(Id name) (error 'eval "free identifier: ~s" name)]))
+         [(Num n) n]
+         [(Add l r) (bin-op + (eval l) (eval r))]
+         [(Sub l r) (bin-op - (eval l) (eval r))]
+         [(Mul l r) (bin-op * (eval l) (eval r))]
+         [(Div l r) (bin-op / (eval l) (eval r))]
+         [(Sqrt e) (sqrt+ (eval e))]
+         [(With bound-id named-expr bound-body)
+          (eval (subst bound-body bound-id (Num (eval named-expr))))]
+         [(Id name) (error 'eval "free identifier: ~s" name)]))
 
 (: run : String -> (Listof Number))
 ;; evaluate a MUWAE program contained in a string
 (define (run str)
   (eval (parse str)))
+
+(define minutes-spent 120)
 
 ;; tests
 
@@ -160,18 +164,16 @@
 
 (test (run "{with {x {sqrt 9}} {+ x 1}}") => '(4 -2))
 (test (run "{with {x {sqrt 0}} {+ x 10}}") => '(10 10))
-(test (run "{with {x {sqrt 9}} {with {y {sqrt 144}} {+ x y}}}") => '(15 -9 9 -15))
+(test (run "{with {x {sqrt 9}} {with {y {sqrt 144}} {+ x y}}}")
+      =>
+      '(15 -9 9 -15))
 (test (run "{with {x {sqrt 9}} {+ x {sqrt 64}}}") => '(11 -5 5 -11))
-      
+
 (test (run "{sqrt 9}") => '(3 -3))
 (test (run "{sqrt 1}") => '(1 -1))
 (test (run "{sqrt 0}") => '(0 0))
-(test (run "{sqrt -1}")
-      =error> "requires a non-negative input")
+(test (run "{sqrt -1}") =error> "requires a non-negative input")
 
-(test (run "{+ {sqrt 1} 3}")
-      => '(4 2))
-(test (run "{+ {/ {+ {sqrt 1} 3} 2} {sqrt 100}}")
-      => '(12 -8 11 -9))
-(test (run "{sqrt {+ 16 {* {+ 1 {sqrt 1}} {/ 9 2}}}}")
-      => '(5 -5 4 -4))
+(test (run "{+ {sqrt 1} 3}") => '(4 2))
+(test (run "{+ {/ {+ {sqrt 1} 3} 2} {sqrt 100}}") => '(12 -8 11 -9))
+(test (run "{sqrt {+ 16 {* {+ 1 {sqrt 1}} {/ 9 2}}}}") => '(5 -5 4 -4))
