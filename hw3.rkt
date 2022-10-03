@@ -15,7 +15,7 @@
 
 ;; MUWAE abstract syntax trees
 (define-type MUWAE
-  [Num  Number]
+  [Num  (Listof Number)]
   [Add  MUWAE MUWAE]
   [Sub  MUWAE MUWAE]
   [Mul  MUWAE MUWAE]
@@ -28,7 +28,7 @@
 ;; parses s-expressions into MUWAEs
 (define (parse-sexpr sexpr)
   (match sexpr
-    [(number: n)    (Num n)]
+    [(number: n)    (Num (list n))]
     [(symbol: name) (Id name)]
     [(cons 'with more)
      (match sexpr
@@ -126,7 +126,7 @@
 ;; evaluates MUWAE expressions by reducing them to numbers
 (define (eval expr)
   (cases expr
-    [(Num n) (list n)]
+    [(Num n) n]
     [(Add l r) (bin-op + (eval l) (eval r))]
     [(Sub l r) (bin-op - (eval l) (eval r))]
     [(Mul l r) (bin-op * (eval l) (eval r))]
@@ -135,7 +135,7 @@
     [(With bound-id named-expr bound-body)
      (eval (subst bound-body
                   bound-id
-                  (Num (first (eval named-expr)))))]
+                  (Num (eval named-expr))))]
     [(Id name) (error 'eval "free identifier: ~s" name)]))
 
 (: run : String -> (Listof Number))
@@ -145,24 +145,29 @@
 
 ;; tests
 
-;(test (run "5") => 5)
-;(test (run "{+ 5 5}") => 10)
-;(test (run "{with {x 5} {+ x x}}") => 10)
-;(test (run "{with {x {+ 5 5}} {+ x x}}") => 20)
-;(test (run "{with {x 5} {with {y {- x 3}} {+ y y}}}") => 4)
-;(test (run "{with {x {+ 5 5}} {with {y {- x 3}} {+ y y}}}") => 14)
-;(test (run "{with {x 5} {+ x {with {x 3} 10}}}") => 15)
-;(test (run "{with {x 5} {+ x {with {x 3} x}}}") => 8)
-;(test (run "{with {x 5} {+ x {with {y 3} x}}}") => 10)
-;(test (run "{with {x 5} {with {y x} y}}") => 5)
-;(test (run "{with {x 5} {with {x x} x}}") => 5)
-;(test (run "{with {x 1} y}") =error> "free identifier")
+(test (run "5") => '(5))
+(test (run "{+ 5 5}") => '(10))
+(test (run "{with {x 5} {+ x x}}") => '(10))
+(test (run "{with {x {+ 5 5}} {+ x x}}") => '(20))
+(test (run "{with {x 5} {with {y {- x 3}} {+ y y}}}") => '(4))
+(test (run "{with {x {+ 5 5}} {with {y {- x 3}} {+ y y}}}") => '(14))
+(test (run "{with {x 5} {+ x {with {x 3} 10}}}") => '(15))
+(test (run "{with {x 5} {+ x {with {x 3} x}}}") => '(8))
+(test (run "{with {x 5} {+ x {with {y 3} x}}}") => '(10))
+(test (run "{with {x 5} {with {y x} y}}") => '(5))
+(test (run "{with {x 5} {with {x x} x}}") => '(5))
+(test (run "{with {x 1} y}") =error> "free identifier")
+
+(test (run "{with {x {sqrt 9}} {+ x 1}}") => '(4 -2))
+(test (run "{with {x {sqrt 0}} {+ x 10}}") => '(10 10))
+(test (run "{with {x {sqrt 9}} {with {y {sqrt 144}} {+ x y}}}") => '(15 -9 9 -15))
+(test (run "{with {x {sqrt 9}} {+ x {sqrt 64}}}") => '(11 -5 5 -11))
       
-;(test (run "{sqrt 9}") => '(3 -3))
-;(test (run "{sqrt 1}") => '(1 -1))
-;(test (run "{sqrt 0}") => '(0 0))
-;(test (run "{sqrt -1}")
-;      =error> "requires a non-negative input")
+(test (run "{sqrt 9}") => '(3 -3))
+(test (run "{sqrt 1}") => '(1 -1))
+(test (run "{sqrt 0}") => '(0 0))
+(test (run "{sqrt -1}")
+      =error> "requires a non-negative input")
 
 (test (run "{+ {sqrt 1} 3}")
       => '(4 2))
