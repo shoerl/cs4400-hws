@@ -149,8 +149,16 @@
 
 ;; tests
 
+;; basic arithmatic tests
 (test (run "5") => '(5))
 (test (run "{+ 5 5}") => '(10))
+(test (run "{- 6 5}") => '(1))
+(test (run "{- 5 9}") => '(-4))
+(test (run "{/ 25 5}") => '(5))
+(test (run "{/ 25 {* 3 4}}") => '(25/12))
+(test (run "{* {+ {/ 30 6} -2} {- 6 4}}") => '(6))
+
+;; with & arithmetic tests
 (test (run "{with {x 5} {+ x x}}") => '(10))
 (test (run "{with {x {+ 5 5}} {+ x x}}") => '(20))
 (test (run "{with {x 5} {with {y {- x 3}} {+ y y}}}") => '(4))
@@ -161,30 +169,34 @@
 (test (run "{with {x 5} {with {y x} y}}") => '(5))
 (test (run "{with {x 5} {with {x x} x}}") => '(5))
 
+;; error message tests
 (test (run "{with {x 1} y}") =error> "free identifier")
-(test (run "{with {x 3 2 4} {+ x 3}}")
-      =error>
-      "bad `with' syntax in (with (x 3 2 4) (+ x 3))")
-(test (run "{dog {x 3 2 4} {+ x 3}}")
-      =error>
-      "bad syntax in (dog (x 3 2 4) (+ x 3))")
 
+(test (run "{with {x 3 2 4} {+ x 3}}")
+      =error> "bad `with' syntax in (with (x 3 2 4) (+ x 3))")
+(test (run "{dog {x 3 2 4} {+ x 3}}")
+      =error> "bad syntax in (dog (x 3 2 4) (+ x 3))")
+(test (run "{sqrt -1}") =error> "requires a non-negative input")
+
+;; with tests using multi-valued expressions
 (test (run "{with {x {sqrt 9}} {+ x 1}}") => '(4 -2))
 (test (run "{with {x {sqrt 0}} {+ x 10}}") => '(10 10))
 (test (run "{with {x {sqrt 9}} {with {y {sqrt 144}} {+ x y}}}")
-      =>
-      '(15 -9 9 -15))
+      => '(15 -9 9 -15))
 (test (run "{with {x {sqrt 9}} {+ x {sqrt 64}}}") => '(11 -5 5 -11))
 (test (run "{with {x {sqrt 16}} {* 15 x}}") => '(60 -60))
 (test (run "{with {x {sqrt 25}} {/ 400 x}}") => '(80 -80))
 
+;; with edge case tests
+(test (run "{with {x 5} {with {x 6} {+ x x}}}") => '(12))
+(test (run "{with {x 4} {with {x 10} {- x x}}}") => '(0))
+(test (run "{with {x 4} {with {x {sqrt 81}} {* x x}}}") => '(81 -81 -81 81))
+
+;; sqrt tests
 (test (run "{sqrt 9}") => '(3 -3))
 (test (run "{sqrt 1}") => '(1 -1))
 (test (run "{sqrt 0}") => '(0 0))
-(test (run "{sqrt -1}") =error> "requires a non-negative input")
-
 (test (run "{+ {sqrt 1} 3}") => '(4 2))
 (test (run "{+ {/ {+ {sqrt 1} 3} 2} {sqrt 100}}") => '(12 -8 11 -9))
 (test (run "{sqrt {+ 16 {* {+ 1 {sqrt 1}} {/ 9 2}}}}")
-      =>
-      '(5 -5 4 -4))
+      => '(5 -5 4 -4))
