@@ -168,6 +168,7 @@
 (test (run "{with {x 5} {+ x {with {y 3} x}}}") => '(10))
 (test (run "{with {x 5} {with {y x} y}}") => '(5))
 (test (run "{with {x 5} {with {x x} x}}") => '(5))
+(test (run "{with {x 10} {+ x {with {x 3} x}}}") => '(13))
 
 ;; error message tests
 (test (run "{with {x 1} y}") =error> "free identifier")
