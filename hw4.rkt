@@ -120,22 +120,46 @@
         ;; (which is the only one here until you extend this), but it's
         ;; left in for clarity.)
         ))
+
+;; %%% What is this for? Why not use +?
 (: do-add : Number Number -> Number)
 (define (do-add a result)
   (+ a result))
+
+(: list-sum : (Listof Number) -> Number)
+;; returns the sum of a list of numbers
+(define (list-sum num-list)
+  (foldl + 0 num-list))
+
+(: list-prod : (Listof Number) -> Number)
+;; returns the product of a list of numbers
+(define (list-prod num-list)
+  (foldl * 1 num-list))
+
+(: div-by-list : Number (Listof Number) -> Number)
+;; divides a number by a list of numbers.
+;; if the list contains a zero, returns an error.
+(define (div-by-list base num-list)
+  (let ([product (list-prod num-list)])
+    (if (equal? product 0)
+        (error 'eval "Cannot divide by zero: ~s / *~s" base num-list)
+        (/ base product))))
 
 (: eval : ALGAE -> (U Number))
 ;; evaluates ALGAE expressions by reducing them to numbers
 (define (eval expr)
   (cases expr
     [(Num n) n]
-    [(Add args) (foldl do-add 0 (map eval-number args))]
-    [(Mul args) (* (eval-number (first args))
-                   (eval-number (second args)))]
-    [(Sub fst args) (- (eval-number fst)
-                       (eval-number (first args)))]
-    [(Div fst args) (/ (eval-number fst)
-                       (eval-number (first args)))]
+    [(Add args) (list-sum (map eval-number args))]
+    [(Mul args) (list-prod (map eval-number args))]
+    [(Sub fst args) (let ([base (eval-number fst)])
+                      (if (null? args)
+                          (- 0 base)
+                          (- base (list-sum (map eval-number args)))))]
+    [(Div fst args) (let ([base (eval-number fst)])
+                      (if (null? args)
+                          (/ 1 base)
+                          (div-by-list base (map eval-number args))))]
     [(With bound-id named-expr bound-body)
      (eval (subst bound-body
                   bound-id
@@ -147,6 +171,9 @@
 ;; evaluate an ALGAE program contained in a string
 (define (run str)
   (eval (parse str)))
+
+;; minutes spent
+(define minutes-spent 0)
 
 ;; tests (for simple expressions)
 (test (run "5") => 5)
@@ -170,3 +197,28 @@
 (test (run "{+ x {with {x {+ 5 131}} x}}") =error> "free identifier: x")
 (test (run "{jolly}") =error> "bad syntax in (jolly)")
 (test (run "{with my best friend}") =error> " bad `with' syntax in (with my best friend)")
+
+;; addition tests
+(test (run "{+ 2 3}") => (+ 2 3))
+(test (run "{+ 1 2 3 4}") => (+ 1 2 3 4))
+(test (run "{+ -1 2 -3 4}") => (+ -1 2 -3 4))
+(test (run "{+}") => (+))
+
+;; multiplication tests
+(test (run "{* 1 2 3 4}") => (* 1 2 3 4))
+(test (run "{* -4 -1 -3 -5}") => (* -4 -1 -3 -5))
+(test (run "{* 5}") => (* 5))
+(test (run "{*}") => (*))
+
+;; subtraction tests
+(test (run "{- 1 2 3 4}") => (- 1 2 3 4))
+(test (run "{- -4 -1 -3 -5}") => (- -4 -1 -3 -5))
+(test (run "{- 5}") => (- 5))
+(test (run "{- -5}") => (- -5))
+
+;; division tests
+(test (run "{/ 81 3 3}") => (/ 81 3 3))
+(test (run "{/ 10}") => (/ 10))
+(test (run "{/ 0 1 2 3 4}") => (/ 0 1 2 3 4))
+(test (run "{/ 1000 10 10 0}") =error> "Cannot divide by zero")
+
