@@ -2,23 +2,33 @@
 
 #| BNF for the ALGAE language:
      <ALGAE> ::= <num>
+               | <bool>
                | { + <ALGAE> ... }
                | { * <ALGAE> ... }
                | { - <ALGAE> <ALGAE> ... }
                | { / <ALGAE> <ALGAE> ... }
                | { with { <id> <ALGAE> } <ALGAE> }
+               | { < <ALGAE> <ALGAE> }
+               | { = <ALGAE> <ALGAE> }
+               | { <= <ALGAE> <ALGAE> }
+               | { if <ALGAE> <ALGAE> <ALGAE> }
                | <id>
 |#
 
 ;; ALGAE abstract syntax trees
 (define-type ALGAE
   [Num  Number]
+  [Bool Boolean]
   [Add  (Listof ALGAE)]
   [Mul  (Listof ALGAE)]
   [Sub  ALGAE (Listof ALGAE)]
   [Div  ALGAE (Listof ALGAE)]
   [Id   Symbol]
-  [With Symbol ALGAE ALGAE])
+  [With Symbol ALGAE ALGAE]
+  [Less ALGAE ALGAE]
+  [Equal ALGAE ALGAE]
+  [LessEq ALGAE ALGAE])
+
 
 (: parse-sexpr : Sexpr -> ALGAE)
 ;; parses s-expressions into ALGAEs
@@ -28,7 +38,10 @@
   (define (parse-sexprs sexprs) (map parse-sexpr sexprs))
   (match sexpr
     [(number: n)    (Num n)]
-    [(symbol: name) (Id name)]
+    [(symbol: sym) (cond
+                     [(equal? sym 'True) (Bool #t)]
+                     [(equal? sym 'False) (Bool #f)]
+                     [else (Id sym)])]
     [(cons 'with more)
      (match sexpr
        [(list 'with (list (symbol: name) named) body)
@@ -38,6 +51,9 @@
     [(list '* args ...)     (Mul (parse-sexprs args))]
     [(list '- fst args ...) (Sub (parse-sexpr fst) (parse-sexprs args))]
     [(list '/ fst args ...) (Div (parse-sexpr fst) (parse-sexprs args))]
+    [(list '< fst snd)      (Less (parse-sexpr fst) (parse-sexpr snd))]
+    [(list '= fst snd)      (Equal (parse-sexpr fst) (parse-sexpr snd))]
+    [(list '<= fst snd)      (LessEq (parse-sexpr fst) (parse-sexpr snd))]
     [else (error 'parse-sexpr "bad syntax in ~s" sexpr)]))
 
 (: parse : String -> ALGAE)
@@ -72,11 +88,15 @@
   (define (substs* exprs) (map subst* exprs))
   (cases expr
     [(Num n)        expr]
+    [(Bool b)       expr]
     [(Add args)     (Add (substs* args))]
     [(Mul args)     (Mul (substs* args))]
     [(Sub fst args) (Sub (subst* fst) (substs* args))]
     [(Div fst args) (Div (subst* fst) (substs* args))]
     [(Id name)      (if (eq? name from) to expr)]
+    [(Less fst snd) (Less (subst* fst) (subst* snd))]
+    [(Equal fst snd) (Equal (subst* fst) (subst* snd))]
+    [(LessEq fst snd) (LessEq (subst* fst) (subst* snd))]    
     [(With bound-id named-expr bound-body)
      (With bound-id
            (subst* named-expr)
@@ -106,10 +126,11 @@
       (error 'eval-number "need a number when evaluating ~s, but got ~s"
              expr result))))
 
-(: value->algae : (U Number) -> ALGAE)
+(: value->algae : (U Number Boolean) -> ALGAE)
 ;; converts a value to an ALGAE value (so it can be used with `subst')
 (define (value->algae val)
   (cond [(number? val) (Num val)]
+        [(boolean? val) (Bool val)]
         ;; Note: a `cond' doesn't make much sense now, but it will when
         ;; we extend the language with booleans.  Also, since we use
         ;; Typed Racket, the type checker makes sure that this function
@@ -145,11 +166,12 @@
         (error 'eval "Cannot divide by zero: ~s / *~s" base num-list)
         (/ base product))))
 
-(: eval : ALGAE -> (U Number))
+(: eval : ALGAE -> (U Number Boolean))
 ;; evaluates ALGAE expressions by reducing them to numbers
 (define (eval expr)
   (cases expr
     [(Num n) n]
+    [(Bool b) b]
     [(Add args) (list-sum (map eval-number args))]
     [(Mul args) (list-prod (map eval-number args))]
     [(Sub fst args) (let ([base (eval-number fst)])
@@ -165,9 +187,12 @@
                   bound-id
                   ;; see the above `value->algae' helper
                   (value->algae (eval named-expr))))]
-    [(Id name) (error 'eval "free identifier: ~s" name)]))
+    [(Id name) (error 'eval "free identifier: ~s" name)]
+    [(Less fst snd) (< (eval-number fst) (eval-number snd))]
+    [(Equal fst snd) (= (eval-number fst) (eval-number snd))]
+    [(LessEq fst snd) (<= (eval-number fst) (eval-number snd))]))
 
-(: run : String -> (U Number))
+(: run : String -> (U Number Boolean))
 ;; evaluate an ALGAE program contained in a string
 (define (run str)
   (eval (parse str)))
@@ -221,4 +246,17 @@
 (test (run "{/ 10}") => (/ 10))
 (test (run "{/ 0 1 2 3 4}") => (/ 0 1 2 3 4))
 (test (run "{/ 1000 10 10 0}") =error> "Cannot divide by zero")
+
+;; < tests
+(test (run "{< 3 10}") => (< 3 10))
+(test (run "{< 100 40}") => (< 100 40))
+
+;; = tests
+(test (run "{= 8 8}") => (= 8 8))
+(test (run "{= 3 -3}") => (= 3 -3))
+
+;; <= tests
+(test (run "{<= 7 8}") => (<= 7 8))
+(test (run "{<= 8 8}") => (<= 8 8))
+(test (run "{<= 9 8}") => (<= 9 8))
 
