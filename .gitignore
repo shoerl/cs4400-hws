@@ -1,4 +1,5 @@
 hw1.rkt
 hw2.rkt
+*.rkt~
 *.swp
 *.bak

@@ -2,23 +2,34 @@
 
 #| BNF for the ALGAE language:
      <ALGAE> ::= <num>
+               | <bool>
                | { + <ALGAE> ... }
                | { * <ALGAE> ... }
                | { - <ALGAE> <ALGAE> ... }
                | { / <ALGAE> <ALGAE> ... }
                | { with { <id> <ALGAE> } <ALGAE> }
+               | { < <ALGAE> <ALGAE> }
+               | { = <ALGAE> <ALGAE> }
+               | { <= <ALGAE> <ALGAE> }
+               | { if <ALGAE> <ALGAE> <ALGAE> }
                | <id>
 |#
 
 ;; ALGAE abstract syntax trees
 (define-type ALGAE
   [Num  Number]
+  [Bool Boolean]
   [Add  (Listof ALGAE)]
   [Mul  (Listof ALGAE)]
   [Sub  ALGAE (Listof ALGAE)]
   [Div  ALGAE (Listof ALGAE)]
   [Id   Symbol]
-  [With Symbol ALGAE ALGAE])
+  [With Symbol ALGAE ALGAE]
+  [Less ALGAE ALGAE]
+  [Equal ALGAE ALGAE]
+  [LessEq ALGAE ALGAE]
+  [If ALGAE ALGAE ALGAE])
+
 
 (: parse-sexpr : Sexpr -> ALGAE)
 ;; parses s-expressions into ALGAEs
@@ -28,7 +39,10 @@
   (define (parse-sexprs sexprs) (map parse-sexpr sexprs))
   (match sexpr
     [(number: n)    (Num n)]
-    [(symbol: name) (Id name)]
+    [(symbol: sym) (cond
+                     [(equal? sym 'True) (Bool #t)]
+                     [(equal? sym 'False) (Bool #f)]
+                     [else (Id sym)])]
     [(cons 'with more)
      (match sexpr
        [(list 'with (list (symbol: name) named) body)
@@ -38,6 +52,12 @@
     [(list '* args ...)     (Mul (parse-sexprs args))]
     [(list '- fst args ...) (Sub (parse-sexpr fst) (parse-sexprs args))]
     [(list '/ fst args ...) (Div (parse-sexpr fst) (parse-sexprs args))]
+    [(list '< fst snd)      (Less (parse-sexpr fst) (parse-sexpr snd))]
+    [(list '= fst snd)      (Equal (parse-sexpr fst) (parse-sexpr snd))]
+    [(list '<= fst snd)      (LessEq (parse-sexpr fst) (parse-sexpr snd))]
+    [(list 'if bool tru fls) (If (parse-sexpr bool)
+                                 (parse-sexpr tru)
+                                 (parse-sexpr fls))]
     [else (error 'parse-sexpr "bad syntax in ~s" sexpr)]))
 
 (: parse : String -> ALGAE)
@@ -45,9 +65,11 @@
 (define (parse str)
   (parse-sexpr (string->sexpr str)))
 
+;; %%% Let's noit forget to expand the formal specs.
 #| Formal specs for `subst':
    (`N' is a <num>, `E1', `E2' are <ALGAE>s, `x' is some <id>, `y' is a
    *different* <id>)
+   (`B' is a True/False value)
       N[v/x]                = N
       {+ E ...}[v/x]        = {+ E[v/x] ...}
       {* E ...}[v/x]        = {* E[v/x] ...}
@@ -72,11 +94,16 @@
   (define (substs* exprs) (map subst* exprs))
   (cases expr
     [(Num n)        expr]
+    [(Bool b)       expr]
     [(Add args)     (Add (substs* args))]
     [(Mul args)     (Mul (substs* args))]
     [(Sub fst args) (Sub (subst* fst) (substs* args))]
     [(Div fst args) (Div (subst* fst) (substs* args))]
     [(Id name)      (if (eq? name from) to expr)]
+    [(Less fst snd) (Less (subst* fst) (subst* snd))]
+    [(Equal fst snd) (Equal (subst* fst) (subst* snd))]
+    [(LessEq fst snd) (LessEq (subst* fst) (subst* snd))]
+    [(If bool tru fls) (If (subst* bool) (subst* tru) (subst* fls))]
     [(With bound-id named-expr bound-body)
      (With bound-id
            (subst* named-expr)
@@ -106,10 +133,20 @@
       (error 'eval-number "need a number when evaluating ~s, but got ~s"
              expr result))))
 
-(: value->algae : (U Number) -> ALGAE)
+(: eval-boolean : ALGAE -> Boolean)
+;; helper for `eval': verifies that the result is a boolean
+(define (eval-boolean expr)
+  (let ([result (eval expr)])
+    (if (boolean? result)
+      result
+      (error 'eval-boolean "need a boolean when evaluating ~s, but got ~s"
+             expr result))))
+
+(: value->algae : (U Number Boolean) -> ALGAE)
 ;; converts a value to an ALGAE value (so it can be used with `subst')
 (define (value->algae val)
   (cond [(number? val) (Num val)]
+        [(boolean? val) (Bool val)]
         ;; Note: a `cond' doesn't make much sense now, but it will when
         ;; we extend the language with booleans.  Also, since we use
         ;; Typed Racket, the type checker makes sure that this function
@@ -120,11 +157,6 @@
         ;; (which is the only one here until you extend this), but it's
         ;; left in for clarity.)
         ))
-
-;; %%% What is this for? Why not use +?
-(: do-add : Number Number -> Number)
-(define (do-add a result)
-  (+ a result))
 
 (: list-sum : (Listof Number) -> Number)
 ;; returns the sum of a list of numbers
@@ -145,11 +177,12 @@
         (error 'eval "Cannot divide by zero: ~s / *~s" base num-list)
         (/ base product))))
 
-(: eval : ALGAE -> (U Number))
+(: eval : ALGAE -> (U Number Boolean))
 ;; evaluates ALGAE expressions by reducing them to numbers
 (define (eval expr)
   (cases expr
     [(Num n) n]
+    [(Bool b) b]
     [(Add args) (list-sum (map eval-number args))]
     [(Mul args) (list-prod (map eval-number args))]
     [(Sub fst args) (let ([base (eval-number fst)])
@@ -165,9 +198,13 @@
                   bound-id
                   ;; see the above `value->algae' helper
                   (value->algae (eval named-expr))))]
-    [(Id name) (error 'eval "free identifier: ~s" name)]))
+    [(Id name) (error 'eval "free identifier: ~s" name)]
+    [(Less fst snd) (< (eval-number fst) (eval-number snd))]
+    [(Equal fst snd) (= (eval-number fst) (eval-number snd))]
+    [(LessEq fst snd) (<= (eval-number fst) (eval-number snd))]
+    [(If bool tru fls) (if (eval-boolean bool) (eval tru) (eval fls))]))
 
-(: run : String -> (U Number))
+(: run : String -> (U Number Boolean))
 ;; evaluate an ALGAE program contained in a string
 (define (run str)
   (eval (parse str)))
@@ -221,4 +258,34 @@
 (test (run "{/ 10}") => (/ 10))
 (test (run "{/ 0 1 2 3 4}") => (/ 0 1 2 3 4))
 (test (run "{/ 1000 10 10 0}") =error> "Cannot divide by zero")
+
+;; boolean tests
+(test (run "True") => #t)
+(test (run "True") => #true)
+(test (run "True") => true)
+(test (run "False") => #f)
+
+;; < tests
+(test (run "{< 3 10}") => (< 3 10))
+(test (run "{< 100 40}") => (< 100 40))
+
+;; = tests
+(test (run "{= 8 8}") => (= 8 8))
+(test (run "{= 3 -3}") => (= 3 -3))
+
+;; <= tests
+(test (run "{<= 7 8}") => (<= 7 8))
+(test (run "{<= 8 8}") => (<= 8 8))
+(test (run "{<= 9 8}") => (<= 9 8))
+
+;; if tests
+(test (run "{if True 1 2}") => 1)
+(test (run "{if False 1 2}") => 2)
+(test (run "{if {< 5 6} {* 5 6 7} {/ 5}}") => 210)
+(test (run "{if {= 5 6} {* 5 6 7} {/ 10}}") => (/ 1 10))
+(test (run "{if {if {<= 3 3}
+                    {< 1 10}
+                    False}
+                5 True}") => 5)
+
 
