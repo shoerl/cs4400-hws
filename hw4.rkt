@@ -120,14 +120,16 @@
         ;; (which is the only one here until you extend this), but it's
         ;; left in for clarity.)
         ))
+(: do-add : Number Number -> Number)
+(define (do-add a result)
+  (+ a result))
 
 (: eval : ALGAE -> (U Number))
 ;; evaluates ALGAE expressions by reducing them to numbers
 (define (eval expr)
   (cases expr
     [(Num n) n]
-    [(Add args) (+ (eval-number (first args))
-                   (eval-number (second args)))]
+    [(Add args) (foldl do-add 0 (map eval-number args))]
     [(Mul args) (* (eval-number (first args))
                    (eval-number (second args)))]
     [(Sub fst args) (- (eval-number fst)
