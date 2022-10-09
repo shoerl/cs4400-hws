@@ -12,6 +12,9 @@
                | { = <ALGAE> <ALGAE> }
                | { <= <ALGAE> <ALGAE> }
                | { if <ALGAE> <ALGAE> <ALGAE> }
+               | { not <ALGAE> }
+               | { and <ALGAE> <ALGAE> }
+               | { or <ALGAE> <ALGAE> }
                | <id>
 |#
 
@@ -30,6 +33,17 @@
   [LessEq ALGAE ALGAE]
   [If ALGAE ALGAE ALGAE])
 
+(: Not : Boolean -> ALGAE)
+(define (Not expr)
+  (if expr (Bool #f) (Bool #t)))
+
+(: Or : Boolean ALGAE -> ALGAE)
+(define (Or fst snd)
+  (if (not fst) snd (Bool #t)))
+
+(: And : Boolean ALGAE -> ALGAE)
+(define (And fst snd)
+  (if (not fst) (Bool #f) snd))
 
 (: parse-sexpr : Sexpr -> ALGAE)
 ;; parses s-expressions into ALGAEs
@@ -55,6 +69,9 @@
     [(list '< fst snd)      (Less (parse-sexpr fst) (parse-sexpr snd))]
     [(list '= fst snd)      (Equal (parse-sexpr fst) (parse-sexpr snd))]
     [(list '<= fst snd)      (LessEq (parse-sexpr fst) (parse-sexpr snd))]
+    [(list 'not arg) (Not (eval-boolean (parse-sexpr arg)))]
+    [(list 'or fst snd) (Or (eval-boolean (parse-sexpr fst)) (parse-sexpr snd))]
+    [(list 'and fst snd) (And (eval-boolean (parse-sexpr fst)) (parse-sexpr snd))]
     [(list 'if bool tru fls) (If (parse-sexpr bool)
                                  (parse-sexpr tru)
                                  (parse-sexpr fls))]
@@ -183,6 +200,7 @@
   (cases expr
     [(Num n) n]
     [(Bool b) b]
+    
     [(Add args) (list-sum (map eval-number args))]
     [(Mul args) (list-prod (map eval-number args))]
     [(Sub fst args) (let ([base (eval-number fst)])
@@ -287,3 +305,19 @@
                     {< 1 10}
                     False}
                 5 True}") => 5)
+
+;; not tests
+(test (run "{not True}") => #f)
+(test (run "{not False}") => #t)
+
+;; or tests
+(test (run "{or False 123}") => 123)
+(test (run "{or False True}") => #t)
+(test (run "{or True True}") => #t)
+(test (run "{or False False}") => #f)
+
+;; and tests
+(test (run "{and True 123}") => 123)
+(test (run "{and True False}") => #f)
+(test (run "{and True True}") => #t)
+(test (run "{and False False}") => #f)
