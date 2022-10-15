@@ -7,15 +7,15 @@
                | { * <ALGAE> ... }
                | { - <ALGAE> <ALGAE> ... }
                | { / <ALGAE> <ALGAE> ... }
-               | { with { <id> <ALGAE> } <ALGAE> }
                | { < <ALGAE> <ALGAE> }
                | { = <ALGAE> <ALGAE> }
                | { <= <ALGAE> <ALGAE> }
                | { if <ALGAE> <ALGAE> <ALGAE> }
+               | { with { <id> <ALGAE> } <ALGAE> }
+               | <id>
                | { not <ALGAE> }
                | { and <ALGAE> <ALGAE> }
                | { or <ALGAE> <ALGAE> }
-               | <id>
 |#
 
 ;; ALGAE abstract syntax trees
@@ -34,14 +34,22 @@
   [If ALGAE ALGAE ALGAE])
 
 (: Not : Boolean -> ALGAE)
+;; Takes in a boolean and produces an ALGAE which
+;; represents the inverse of the boolean given
 (define (Not expr)
   (if expr (Bool #f) (Bool #t)))
 
 (: Or : Boolean ALGAE -> ALGAE)
+;; Takes in a boolean and an ALGAE and produces:
+;;   - an ALGAE Bool representing true if the first argument is true
+;;   - the second ALGAE argument otherwise
 (define (Or fst snd)
   (if (not fst) snd (Bool #t)))
 
 (: And : Boolean ALGAE -> ALGAE)
+;; Takes in a boolean and an ALGAE and produces:
+;;   - an ALGAE Bool representing false if the first argument is false
+;;   - the second ALGAE argument otherwise
 (define (And fst snd)
   (if (not fst) (Bool #f) snd))
 
@@ -62,16 +70,26 @@
        [(list 'with (list (symbol: name) named) body)
         (With name (parse-sexpr named) (parse-sexpr body))]
        [else (error 'parse-sexpr "bad `with' syntax in ~s" sexpr)])]
-    [(list '+ args ...)     (Add (parse-sexprs args))]
-    [(list '* args ...)     (Mul (parse-sexprs args))]
-    [(list '- fst args ...) (Sub (parse-sexpr fst) (parse-sexprs args))]
-    [(list '/ fst args ...) (Div (parse-sexpr fst) (parse-sexprs args))]
-    [(list '< fst snd)      (Less (parse-sexpr fst) (parse-sexpr snd))]
-    [(list '= fst snd)      (Equal (parse-sexpr fst) (parse-sexpr snd))]
-    [(list '<= fst snd)      (LessEq (parse-sexpr fst) (parse-sexpr snd))]
-    [(list 'not arg) (Not (eval-boolean (parse-sexpr arg)))]
-    [(list 'or fst snd) (Or (eval-boolean (parse-sexpr fst)) (parse-sexpr snd))]
-    [(list 'and fst snd) (And (eval-boolean (parse-sexpr fst)) (parse-sexpr snd))]
+    [(list '+ args ...)
+     (Add (parse-sexprs args))]
+    [(list '* args ...)
+     (Mul (parse-sexprs args))]
+    [(list '- fst args ...)
+     (Sub (parse-sexpr fst) (parse-sexprs args))]
+    [(list '/ fst args ...)
+     (Div (parse-sexpr fst) (parse-sexprs args))]
+    [(list '< fst snd)
+     (Less (parse-sexpr fst) (parse-sexpr snd))]
+    [(list '= fst snd)
+     (Equal (parse-sexpr fst) (parse-sexpr snd))]
+    [(list '<= fst snd)
+     (LessEq (parse-sexpr fst) (parse-sexpr snd))]
+    [(list 'not arg)
+     (Not (eval-boolean (parse-sexpr arg)))]
+    [(list 'or fst snd)
+     (Or (eval-boolean (parse-sexpr fst)) (parse-sexpr snd))]
+    [(list 'and fst snd)
+     (And (eval-boolean (parse-sexpr fst)) (parse-sexpr snd))]
     [(list 'if bool tru fls) (If (parse-sexpr bool)
                                  (parse-sexpr tru)
                                  (parse-sexpr fls))]
@@ -85,13 +103,17 @@
 ;; %%% Let's noit forget to expand the formal specs.
 #| Formal specs for `subst':
    (`N' is a <num>, `E1', `E2' are <ALGAE>s, `x' is some <id>, `y' is a
-   *different* <id>)
-   (`B' is a True/False value)
+   *different* <id>, `B` is a True/False)
       N[v/x]                = N
+      B[v/x]                = B
       {+ E ...}[v/x]        = {+ E[v/x] ...}
       {* E ...}[v/x]        = {* E[v/x] ...}
       {- E1 E ...}[v/x]     = {- E1[v/x] E[v/x] ...}
       {/ E1 E ...}[v/x]     = {/ E1[v/x] E[v/x] ...}
+      {< E1 E2}[v/x]        = {< E1[v/x] E2[v/x]}
+      {= E1 E2}[v/x]        = {= E1[v/x] E2[v/x]}
+      {<= E1 E2}[v/x]       = {<= E1[v/x] E2[v/x]}
+      {if E1 E2 E3}[v/x]    = {if E1[v/x] E2[v/x] E3[v/x]}
       y[v/x]                = y
       x[v/x]                = v
       {with {y E1} E2}[v/x] = {with {y E1[v/x]} E2[v/x]}
@@ -125,20 +147,28 @@
      (With bound-id
            (subst* named-expr)
            (if (eq? bound-id from)
-             bound-body
-             (subst* bound-body)))]))
+               bound-body
+               (subst* bound-body)))]))
 
 #| Formal specs for `eval':
-     eval(N)            = N
-     eval({+ E ...})    = evalN(E) + ...
-     eval({* E ...})    = evalN(E) * ...
-     eval({- E})        = -evalN(E)
-     eval({/ E})        = 1/evalN(E)
-     eval({- E1 E ...}) = evalN(E1) - (evalN(E) + ...)
-     eval({/ E1 E ...}) = evalN(E1) / (evalN(E) * ...)
-     eval(id)           = error!
+     eval(N)             = N
+     eval(B)             = B
+     eval({+ E ...})     = evalN(E) + ...
+     eval({* E ...})     = evalN(E) * ...
+     eval({- E})         = -evalN(E)
+     eval({/ E})         = 1/evalN(E)
+     eval({- E1 E ...})  = evalN(E1) - (evalN(E) + ...)
+     eval({/ E1 E ...})  = evalN(E1) / (evalN(E) * ...)
+     eval({< E1 E2})     = evalN(E1) < evalN(E2)
+     eval({= E1 E2})     = evalN(E1) = evalN(E2)
+     eval({<= E1 E2})    = evalN(E1) <= evalN(E2)
+     eval({if E1 E2 E3}) = eval(E2) if evalB(E1) is True
+                           eval(E3) if evalB(E1) is False
+                           error if evalB(E1) fails/errors
+     eval(id)            = error!
      eval({with {x E1} E2}) = eval(E2[eval(E1)/x])
      evalN(E) = eval(E) if it is a number, error otherwise
+     evalB(E) = eval(E) if it is a boolean, error otherwise
 |#
 
 (: eval-number : ALGAE -> Number)
@@ -146,18 +176,18 @@
 (define (eval-number expr)
   (let ([result (eval expr)])
     (if (number? result)
-      result
-      (error 'eval-number "need a number when evaluating ~s, but got ~s"
-             expr result))))
+        result
+        (error 'eval-number "need a number when evaluating ~s, but got ~s"
+               expr result))))
 
 (: eval-boolean : ALGAE -> Boolean)
 ;; helper for `eval': verifies that the result is a boolean
 (define (eval-boolean expr)
   (let ([result (eval expr)])
     (if (boolean? result)
-      result
-      (error 'eval-boolean "need a boolean when evaluating ~s, but got ~s"
-             expr result))))
+        result
+        (error 'eval-boolean "need a boolean when evaluating ~s, but got ~s"
+               expr result))))
 
 (: value->algae : (U Number Boolean) -> ALGAE)
 ;; converts a value to an ALGAE value (so it can be used with `subst')
@@ -200,7 +230,6 @@
   (cases expr
     [(Num n) n]
     [(Bool b) b]
-    
     [(Add args) (list-sum (map eval-number args))]
     [(Mul args) (list-prod (map eval-number args))]
     [(Sub fst args) (let ([base (eval-number fst)])
@@ -228,7 +257,7 @@
   (eval (parse str)))
 
 ;; minutes spent
-(define minutes-spent 0)
+(define minutes-spent 250)
 
 ;; tests (for simple expressions)
 (test (run "5") => 5)
@@ -240,7 +269,10 @@
 (test (run "{with {x 5} {+ x x}}") => 10)
 (test (run "{with {x 13} {* x x}}") => 169)
 (test (run "{with {x {+ 5 5}} {with {y {- x 3}} {+ y y}}}") => 14)
-(test (run "{with {x {+ 5 5}} {with {y {- x 3}} {with {z {/ 100 5}} {* y z}}}}") => 140)
+(test (run "{with {x {+ 5 5}}
+            {with {y {- x 3}}
+            {with {z {/ 100 5}}
+            {* y z}}}}")=> 140)
 (test (run "{with {x 5} {with {y {- x 3}} {+ y y}}}") => 4)
 (test (run "{with {x 5} {+ x {with {x 3} 10}}}") => 15)
 (test (run "{with {x 5} {+ x {with {x 3} x}}}") => 8)
@@ -248,10 +280,25 @@
 (test (run "{with {x 5} {with {y x} y}}") => 5)
 (test (run "{with {x 5} {with {x x} x}}") => 5)
 
+(test (run "{with {x 1} True}") => #t)
+(test (run "{with {x 1} {< 1 3}}") => #t)
+(test (run "{with {x 1} {= 3 4}}") => #f)
+(test (run "{with {x 1} {<= 2 4}}") => #t)
+(test (run "{with {x 1} {if True 1 2}}") => 1)
+
+(test (run "{with {x {not True}} {and True x}}") => #f)
+;; number in if statement
+
+
 ;; error tests
 (test (run "{+ x {with {x {+ 5 131}} x}}") =error> "free identifier: x")
 (test (run "{jolly}") =error> "bad syntax in (jolly)")
-(test (run "{with my best friend}") =error> " bad `with' syntax in (with my best friend)")
+(test (run "{with my best friend}") =error>
+      "bad `with' syntax in (with my best friend)")
+(test (run "{+ {or True False} 2}") =error>
+      "need a number when evaluating #(struct:Bool #t), but got #t")
+(test (run "{or 1 {or True False}}") =error>
+      "need a boolean when evaluating #(struct:Num 1), but got 1")
 
 ;; addition tests
 (test (run "{+ 2 3}") => (+ 2 3))
@@ -305,6 +352,7 @@
                     {< 1 10}
                     False}
                 5 True}") => 5)
+
 
 ;; not tests
 (test (run "{not True}") => #f)
