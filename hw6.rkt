@@ -40,100 +40,6 @@ Evaluation rules:
   [Fun  Symbol BRANG]
   [Call BRANG BRANG])
 
-(: parse-sexpr : Sexpr -> BRANG)
-;; parses s-expressions into BRANGs
-(define (parse-sexpr sexpr)
-  (match sexpr
-    [(number: n)    (Num n)]
-    [(symbol: name) (Id name)]
-    [(cons 'with more)
-     (match sexpr
-       [(list 'with (list (symbol: name) named) body)
-        (With name (parse-sexpr named) (parse-sexpr body))]
-       [else (error 'parse-sexpr "bad `with' syntax in ~s" sexpr)])]
-    [(cons 'fun more)
-     (match sexpr
-       [(list 'fun (list (symbol: name)) body)
-        (Fun name (parse-sexpr body))]
-       [else (error 'parse-sexpr "bad `fun' syntax in ~s" sexpr)])]
-    [(list '+ lhs rhs) (Add (parse-sexpr lhs) (parse-sexpr rhs))]
-    [(list '- lhs rhs) (Sub (parse-sexpr lhs) (parse-sexpr rhs))]
-    [(list '* lhs rhs) (Mul (parse-sexpr lhs) (parse-sexpr rhs))]
-    [(list '/ lhs rhs) (Div (parse-sexpr lhs) (parse-sexpr rhs))]
-    [(list 'call fun arg)
-                       (Call (parse-sexpr fun) (parse-sexpr arg))]
-    [else (error 'parse-sexpr "bad syntax in ~s" sexpr)]))
-
-(: parse : String -> BRANG)
-;; parses a string containing a BRANG expression to a BRANG AST
-(define (parse str)
-  (parse-sexpr (string->sexpr str)))
-
-;; Types for environments, values, and a lookup function
-
-(define-type ENV
-  [EmptyEnv]
-  [Extend Symbol VAL ENV])
-
-(define-type VAL
-  [NumV Number]
-  [FunV Symbol BRANG ENV])
-
-(: lookup : Symbol ENV -> VAL)
-;; lookup a symbol in an environment, return its value or throw an
-;; error if it isn't bound
-(define (lookup name env)
-  (cases env
-    [(EmptyEnv) (error 'lookup "no binding for ~s" name)]
-    [(Extend id val rest-env)
-     (if (eq? id name) val (lookup name rest-env))]))
-
-(: NumV->number : VAL -> Number)
-;; convert a BRANG runtime numeric value to a Racket one
-(define (NumV->number val)
-  (cases val
-    [(NumV n) n]
-    [else (error 'arith-op "expected a number, got: ~s" val)]))
-
-(: arith-op : (Number Number -> Number) VAL VAL -> VAL)
-;; gets a Racket numeric binary operator, and uses it within a NumV
-;; wrapper
-(define (arith-op op val1 val2)
-  (NumV (op (NumV->number val1) (NumV->number val2))))
-
-(: eval : BRANG ENV -> VAL)
-;; evaluates BRANG expressions by reducing them to values
-(define (eval expr env)
-  (cases expr
-    [(Num n) (NumV n)]
-    [(Add l r) (arith-op + (eval l env) (eval r env))]
-    [(Sub l r) (arith-op - (eval l env) (eval r env))]
-    [(Mul l r) (arith-op * (eval l env) (eval r env))]
-    [(Div l r) (arith-op / (eval l env) (eval r env))]
-    [(With bound-id named-expr bound-body)
-     (eval bound-body
-           (Extend bound-id (eval named-expr env) env))]
-    [(Id name) (lookup name env)]
-    [(Fun bound-id bound-body)
-     (FunV bound-id bound-body env)]
-    [(Call fun-expr arg-expr)
-     (let ([fval (eval fun-expr env)])
-       (cases fval
-         [(FunV bound-id bound-body f-env)
-          (eval bound-body
-                (Extend bound-id (eval arg-expr env) f-env))]
-         [else (error 'eval "`call' expects a function, got: ~s"
-                            fval)]))]))
-
-(: run : String -> Number)
-;; evaluate a BRANG program contained in a string
-(define (run str)
-  (let ([result (eval (parse str) (EmptyEnv))])
-    (cases result
-      [(NumV n) n]
-      [else (error 'run "evaluation returned a non-number: ~s"
-                   result)])))
-
 
 ;; ** The Core interpreter, using environments
 
@@ -158,10 +64,134 @@ The grammar:
   [CSub  CORE CORE]
   [CMul  CORE CORE]
   [CDiv  CORE CORE]
-  [CId   Symbol]
-  [CWith Symbol CORE CORE]
-  [CFun  Symbol CORE]
+  [CRef  Natural]
+  [CWith CORE CORE]
+  [CFun CORE]
   [CCall CORE CORE])
+
+(: parse-sexpr : Sexpr -> CORE)
+;; parses s-expressions into COREs
+(define (parse-sexpr sexpr)
+  (match sexpr
+    [(number: n)    (CNum n)]
+    [(symbol: name) (CId name)]
+    [(cons 'with more)
+     (match sexpr
+       [(list 'with name body)
+        (CWith name (parse-sexpr named) (parse-sexpr body))]
+       [else (error 'parse-sexpr "bad `with' syntax in ~s" sexpr)])]
+    [(cons 'fun more)
+     (match sexpr
+       [(list 'fun (list (symbol: name)) body)
+        (Fun name (parse-sexpr body))]
+       [else (error 'parse-sexpr "bad `fun' syntax in ~s" sexpr)])]
+    [(list '+ lhs rhs) (Add (parse-sexpr lhs) (parse-sexpr rhs))]
+    [(list '- lhs rhs) (Sub (parse-sexpr lhs) (parse-sexpr rhs))]
+    [(list '* lhs rhs) (Mul (parse-sexpr lhs) (parse-sexpr rhs))]
+    [(list '/ lhs rhs) (Div (parse-sexpr lhs) (parse-sexpr rhs))]
+    [(list 'call fun arg)
+                       (Call (parse-sexpr fun) (parse-sexpr arg))]
+    [else (error 'parse-sexpr "bad syntax in ~s" sexpr)]))
+
+(: parse : String -> CORE)
+;; parses a string containing a BRANG expression to a BRANG AST
+(define (parse str)
+  (parse-sexpr (string->sexpr str)))
+
+;; Types for environments, values, and a lookup function
+
+
+(define-type ENV
+  [EmptyEnv]
+  [RefRest VAL ENV])
+
+(define-type VAL
+  [NumV Number]
+  [FunV CORE ENV])
+
+(: NumV->number : VAL -> Number)
+;; convert a FLANG runtime numeric value to a Racket one
+(define (NumV->number val)
+  (cases val
+    [(NumV n) n]
+    [else (error 'arith-op "expected a number, got: ~s" val)]))
+
+(: arith-op : (Number Number -> Number) VAL VAL -> VAL)
+;; gets a Racket numeric binary operator, and uses it within a NumV
+;; wrapper
+(define (arith-op op val1 val2)
+  (NumV (op (NumV->number val1) (NumV->number val2))))
+
+
+
+
+(: extend : ENV VAL -> ENV)
+(define (extend env id)
+  (cases env
+    [(EmptyEnv) (RefRest id EmptyEnv)]
+    [(RefRest v e) (RefRest id (RefRest v e))]))
+
+(: eval : CORE ENV -> VAL)
+;; evaluates BRANG expressions by reducing them to values
+(define (eval expr env)
+  (cases expr
+    [(CNum n) (NumV n)]
+    [(CAdd l r) (arith-op + (eval l env) (eval r env))]
+    [(CSub l r) (arith-op - (eval l env) (eval r env))]
+    [(CMul l r) (arith-op * (eval l env) (eval r env))]
+    [(CDiv l r) (arith-op / (eval l env) (eval r env))]
+    [(CWith named-expr bound-body)
+     (eval bound-body
+           (extend env (eval named-expr env)))]
+    [(CRef id)
+     (cases env
+       [(EmptyEnv) (error  'eval "uh oh")]
+       [(RefRest v e) (if (equal? id 0) v (eval (CRef (- id 1)) e))])]
+    [(CFun bound-body)
+     (FunV bound-body env)]
+    [(CCall fun-expr arg-expr)
+     (let ([fval (eval fun-expr env)])
+       (cases fval
+         [(FunV bound-body f-env)
+          (eval bound-body
+                (extend f-env (eval arg-expr env)))]
+         [else (error 'eval "`call' expects a function, got: ~s"
+                            fval)]))]))
+
+(: run : String -> Number)
+;; evaluate a BRANG program contained in a string
+(define (run str)
+  (let ([result (eval (parse str) (EmptyEnv))])
+    (cases result
+      [(NumV n) n]
+      [else (error 'run "evaluation returned a non-number: ~s"
+                   result)])))
+
+
+
+;(: ceval : CORE ENV -> VAL)
+;;; evaluates BRANG expressions by reducing them to values
+;(define (ceval expr env)
+;  (cases expr
+;    [(CNum n) (NumV n)]
+;    [(CAdd l r) (arith-op + (ceval l env) (ceval r env))]
+;    [(CSub l r) (arith-op - (ceval l env) (ceval r env))]
+;    [(CMul l r) (arith-op * (ceval l env) (ceval r env))]
+;    [(CDiv l r) (arith-op / (ceval l env) (ceval r env))]
+;    [(CWith bound-id named-expr bound-body)
+;     (ceval bound-body
+;           (Extend bound-id (ceval named-expr env) env))]
+;    [(CId name) (lookup name env)]
+;    [(CFun bound-id bound-body)
+;     (FunV bound-id bound-body env)]
+;    [(CCall fun-expr arg-expr)
+;     (let ([fval (ceval fun-expr env)])
+;       (cases fval
+;         [(FunV bound-id bound-body f-env)
+;          (ceval bound-body
+;                (Extend bound-id (ceval arg-expr env) f-env))]
+;         [else (error 'ceval "`call' expects a function, got: ~s"
+;                            fval)]))]))
 
 ;; tests
 (test (run "{call {fun {x} {+ x 1}} 4}")
