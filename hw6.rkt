@@ -186,9 +186,10 @@ The grammar:
     [(Mul l r) (CMul (preprocess l deenv) (preprocess r deenv))]
     [(Div l r) (CDiv (preprocess l deenv) (preprocess r deenv))]
     [(MBrang fst rst)
-     (cases fst
-       [(Num n) (
-     (preprocess (Fun fst rst) deenv)]
+     (preprocess fst deenv)
+;     (cases fst
+;       [(Num n) (
+;     (preprocess (Fun fst rst) deenv)]
     [(With bound-id named-expr bound-body)
      (let ([newenv (de-extend deenv bound-id)])
      (CCall (CFun (preprocess named-expr newenv)) (preprocess bound-body newenv)))]
