@@ -137,7 +137,7 @@ The grammar:
 
 (: de-find : DE-ENV Symbol -> Natural)
 (define (de-find denv sym)
-  (println sym) (println denv) (println "-----")
+;;  (println sym) (println denv) (println "-----")
   (cases denv
     [(DEmptyEnv) (error 'de-find "symbol does not exist")]
     [(DRest osym nat odenv) (if (equal? sym osym) nat (de-find odenv sym))]))
@@ -164,7 +164,7 @@ The grammar:
 (: eval : CORE ENV -> VAL)
 ;; evaluates BRANG expressions by reducing them to values
 (define (eval expr env)
-  (println expr)
+;  (println expr)
   (cases expr
     [(CNum n) (NumV n)]
     [(CAdd l r) (arith-op + (eval l env) (eval r env))]
@@ -172,6 +172,7 @@ The grammar:
     [(CMul l r) (arith-op * (eval l env) (eval r env))]
     [(CDiv l r) (arith-op / (eval l env) (eval r env))]
     [(CRef id)
+     (println env)
      (cases env
        [(EmptyEnv) (error  'eval "uh oh")]
        [(RefRest v e) (if (equal? id 0) v (eval (CRef (- id 1)) e))])]
@@ -198,17 +199,22 @@ The grammar:
     [(Div l r) (CDiv (preprocess l deenv) (preprocess r deenv))]
     [(With bound-id named-expr bound-body)
      (let ([newenv (de-extend deenv bound-id)])
-     (CCall (CFun (preprocess named-expr newenv)) (preprocess bound-body newenv)))]
+      (CCall (CFun (preprocess bound-body newenv)) (preprocess named-expr newenv)))]
     [(Id name) (CRef (de-find deenv name))]
     [(Fun bound-id bound-body)
-     (cond
+;     (println bound-body)
+#|     (cond
        [(null? bound-id) (CFun (preprocess bound-body deenv))]
+       [else (let ([newenv (de-extend deenv (first bound-id))])
+                  (preprocess (Fun (rest bound-id) bound-body) newenv))])] |#
+    (cond
+       [(null? bound-id) (preprocess bound-body deenv)]
        [else (let ([newenv (de-extend deenv (first bound-id))])
                   (CFun (preprocess (Fun (rest bound-id) bound-body) newenv)))])]
     [(Call fun-expr arg-expr)
      (cond
        [(null? arg-expr) (preprocess fun-expr deenv)]
-       [else (CCall (preprocess fun-expr deenv) (preprocess (first arg-expr) deenv))])]))
+       [else (CCall (preprocess (Call fun-expr (rest arg-expr)) deenv) (preprocess (first arg-expr) deenv))])]))
 
 
 (: run : String -> Number)
@@ -223,10 +229,12 @@ The grammar:
 
 
 ;; basic arithmatic tests
-(parse "{call {fun {x y} {+ x y}} 1 5}")
-(preprocess (parse "{call {fun {x y} {+ x y}} 1 5}") (DEmptyEnv))
-;
-;(test (run "{call {fun {x y} {+ x y}} 1 5}") => 30)
+;(parse "{call {fun {x y} {+ x y}} 1 5}")
+;(preprocess (parse "{call {fun {x y} {+ x y}} 1 5}") (DEmptyEnv))
+;(preprocess (parse "{call {fun {x} {+ x 1}} 1}") (DEmptyEnv))
+;(preprocess (parse "{call {fun {x y} {+ x y}} 1 5}") (DEmptyEnv))
+;(test (run "{call {fun {x y} {+ x y}} 1 5}") => 6)
+;(test (run "{call {fun {x y} {* x y}} 6 5}") => 30)
 ;(test (run "5") => 5)
 ;(test (run "{+ 5 5}") => 10)
 ;(test (run "{- 6 5}") => 1)
@@ -235,13 +243,14 @@ The grammar:
 ;(test (run "{/ 25 {* 3 4}}") => 25/12)
 ;(test (run "{* {+ {/ 30 6} -2} {- 6 4}}") => 6)
 ;
-;;; tests
-;(test (run "{call {fun {x} {+ x 1}} 4}")
-;      => 5)
+;;;; tests
+;(test (run "{call {fun {x} {+ x 1}} 4}") => 5)
+;(test (run "{with {x 5} {+ x 100}}") => 105)
 
-;(test (run "{with {add3 {fun {x} {+ x 3}}}
-;              {call add3 1}}")
-;      => 4)
+(test (run "{with {add3 {fun {x} {+ x 3}}}
+              {call add3 1}}")
+      => 4)
+
 ;(test (run "{with {add3 {fun {x} {+ x 3}}}
 ;              {with {add1 {fun {x} {+ x 1}}}
 ;                {with {x 3}
