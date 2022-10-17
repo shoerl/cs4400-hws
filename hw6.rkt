@@ -77,7 +77,6 @@ The grammar:
   (match sexpr
     [(number: n)    (Num n)]
     [(symbol: name) (Id name)]
-    [(cons nu other) (MBrang (parse-sexpr nu) (parse-sexpr other))] 
     [(cons 'with more)
      (match sexpr
        [(list 'with (list (symbol: name) named) body)
@@ -85,8 +84,8 @@ The grammar:
        [else (error 'parse-sexpr "bad `with' syntax in ~s" sexpr)])]
     [(cons 'fun more)
      (match sexpr
-       [(list 'fun (list (symbol: name)) body)
-        (Fun name (parse-sexpr body))]
+       [(list 'fun (list (symbol: names) ...) body)
+        (Fun (car names) (parse-sexpr (list 'fun (rest names) body)))]
        [else (error 'parse-sexpr "bad `fun' syntax in ~s" sexpr)])]
     [(list '+ lhs rhs) (Add (parse-sexpr lhs) (parse-sexpr rhs))]
     [(list '- lhs rhs) (Sub (parse-sexpr lhs) (parse-sexpr rhs))]
@@ -186,7 +185,7 @@ The grammar:
     [(Mul l r) (CMul (preprocess l deenv) (preprocess r deenv))]
     [(Div l r) (CDiv (preprocess l deenv) (preprocess r deenv))]
     [(MBrang fst rst)
-     (preprocess fst deenv)
+     (preprocess fst deenv)]
 ;     (cases fst
 ;       [(Num n) (
 ;     (preprocess (Fun fst rst) deenv)]
