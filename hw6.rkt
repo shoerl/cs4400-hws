@@ -5,13 +5,14 @@
 #|
 The grammar:
   <BRANG> ::= <num>
+            | (listof <BRANG>)
             | { + <BRANG> <BRANG> }
             | { - <BRANG> <BRANG> }
             | { * <BRANG> <BRANG> }
             | { / <BRANG> <BRANG> }
             | { with { <id> <BRANG> } <BRANG> }
             | <id>
-            | { fun { <id> } <BRANG> }
+            | { fun { <id> ... } <BRANG> }
             | { call <BRANG> <BRANG> }
 
 Evaluation rules:
@@ -31,6 +32,7 @@ Evaluation rules:
 
 (define-type BRANG
   [Num  Number]
+  [MBrang BRANG BRANG]
   [Add  BRANG BRANG]
   [Sub  BRANG BRANG]
   [Mul  BRANG BRANG]
@@ -46,13 +48,14 @@ Evaluation rules:
 #|
 The grammar:
   <CORE> ::= <num>
+            | { <CORE>  <CORE> } 
             | { + <CORE> <CORE> }
             | { - <CORE> <CORE> }
             | { * <CORE> <CORE> }
             | { / <CORE> <CORE> }
             | { with { <id> <CORE> } <CORE> }
             | <id>
-            | { fun { <id> } <CORE> }
+            | { fun { <id> ... } <CORE> }
             | { call <CORE> <CORE> }
 
 
@@ -65,7 +68,6 @@ The grammar:
   [CMul  CORE CORE]
   [CDiv  CORE CORE]
   [CRef  Natural]
-  [CWith CORE CORE]
   [CFun CORE]
   [CCall CORE CORE])
 
@@ -75,6 +77,7 @@ The grammar:
   (match sexpr
     [(number: n)    (Num n)]
     [(symbol: name) (Id name)]
+    [(cons nu other) (MBrang (parse-sexpr nu) (parse-sexpr other))] 
     [(cons 'with more)
      (match sexpr
        [(list 'with (list (symbol: name) named) body)
@@ -159,9 +162,6 @@ The grammar:
     [(CSub l r) (arith-op - (eval l env) (eval r env))]
     [(CMul l r) (arith-op * (eval l env) (eval r env))]
     [(CDiv l r) (arith-op / (eval l env) (eval r env))]
-    [(CWith named-expr bound-body)
-     (eval bound-body
-           (extend env (eval named-expr env)))]
     [(CRef id)
      (cases env
        [(EmptyEnv) (error  'eval "uh oh")]
@@ -185,9 +185,13 @@ The grammar:
     [(Sub l r) (CSub (preprocess l deenv) (preprocess r deenv))]
     [(Mul l r) (CMul (preprocess l deenv) (preprocess r deenv))]
     [(Div l r) (CDiv (preprocess l deenv) (preprocess r deenv))]
+    [(MBrang fst rst)
+     (cases fst
+       [(Num n) (
+     (preprocess (Fun fst rst) deenv)]
     [(With bound-id named-expr bound-body)
      (let ([newenv (de-extend deenv bound-id)])
-     (CWith (preprocess named-expr newenv) (preprocess bound-body newenv)))]
+     (CCall (CFun (preprocess named-expr newenv)) (preprocess bound-body newenv)))]
     [(Id name) (CRef (de-find deenv name))]
     [(Fun bound-id bound-body)
      (CFun (preprocess bound-body (de-extend deenv bound-id)))]
