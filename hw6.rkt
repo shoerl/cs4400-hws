@@ -39,7 +39,7 @@ Evaluation rules:
   [Div  BRANG BRANG]
   [Id   Symbol]
   [With Symbol BRANG BRANG]
-  [Fun  Symbol BRANG]
+  [Fun  (Listof Symbol) BRANG]
   [Call BRANG BRANG])
 
 
@@ -48,16 +48,14 @@ Evaluation rules:
 #|
 The grammar:
   <CORE> ::= <num>
-            | { <CORE>  <CORE> } 
             | { + <CORE> <CORE> }
             | { - <CORE> <CORE> }
             | { * <CORE> <CORE> }
             | { / <CORE> <CORE> }
             | { with { <id> <CORE> } <CORE> }
             | <id>
-            | { fun { <id> ... } <CORE> }
+            | { fun { <id> } <CORE> }
             | { call <CORE> <CORE> }
-
 
 |#
 
@@ -82,17 +80,21 @@ The grammar:
        [(list 'with (list (symbol: name) named) body)
         (With name (parse-sexpr named) (parse-sexpr body))]
        [else (error 'parse-sexpr "bad `with' syntax in ~s" sexpr)])]
-    [(cons 'fun more)
+    [(cons 'fun more) 
      (match sexpr
        [(list 'fun (list (symbol: names) ...) body)
-        (Fun (car names) (parse-sexpr (list 'fun (rest names) body)))]
+        (Fun names (parse-sexpr body))]
        [else (error 'parse-sexpr "bad `fun' syntax in ~s" sexpr)])]
     [(list '+ lhs rhs) (Add (parse-sexpr lhs) (parse-sexpr rhs))]
     [(list '- lhs rhs) (Sub (parse-sexpr lhs) (parse-sexpr rhs))]
     [(list '* lhs rhs) (Mul (parse-sexpr lhs) (parse-sexpr rhs))]
     [(list '/ lhs rhs) (Div (parse-sexpr lhs) (parse-sexpr rhs))]
-    [(list 'call fun arg)
-                       (Call (parse-sexpr fun) (parse-sexpr arg))]
+    ;;    [(list 'call fun (list (number: args) ...))
+    [(list 'call more)
+     (match sexpr
+        [(list 'call fun (list (symbol: names) ...) body)
+        (Fun names (parse-sexpr body))]
+       [else (error 'parse-sexpr "bad `call` syntax in ~s" sexpr)])]
     [else (error 'parse-sexpr "bad syntax in ~s" sexpr)]))
 
 
@@ -185,6 +187,7 @@ The grammar:
     [(Mul l r) (CMul (preprocess l deenv) (preprocess r deenv))]
     [(Div l r) (CDiv (preprocess l deenv) (preprocess r deenv))]
     [(MBrang fst rst)
+     (print (preprocess fst deenv))
      (preprocess fst deenv)]
 ;     (cases fst
 ;       [(Num n) (
@@ -211,6 +214,7 @@ The grammar:
 
 
 ;; basic arithmatic tests
+(test (run "{call {fun {x y} {+ x y}} 1 5}") => 30)
 (test (run "5") => 5)
 (test (run "{+ 5 5}") => 10)
 (test (run "{- 6 5}") => 1)
