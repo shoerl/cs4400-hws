@@ -32,7 +32,6 @@ Evaluation rules:
 
 (define-type BRANG
   [Num  Number]
-  [MBrang BRANG BRANG]
   [Add  BRANG BRANG]
   [Sub  BRANG BRANG]
   [Mul  BRANG BRANG]
@@ -40,7 +39,7 @@ Evaluation rules:
   [Id   Symbol]
   [With Symbol BRANG BRANG]
   [Fun  (Listof Symbol) BRANG]
-  [Call BRANG BRANG])
+  [Call BRANG (Listof BRANG)])
 
 
 ;; ** The Core interpreter, using environments
@@ -69,12 +68,18 @@ The grammar:
   [CFun CORE]
   [CCall CORE CORE])
 
+(: get-list : (Listof Sexpr) -> (Listof BRANG))
+(define (get-list li-sexpr)
+  (if (null? li-sexpr) '() (cons (parse-sexpr (first li-sexpr)) (get-list (rest li-sexpr)))))
+
 (: parse-sexpr : Sexpr ->  BRANG)
 ;; parses s-expressions into BRANGs
 (define (parse-sexpr sexpr)
   (match sexpr
     [(number: n)    (Num n)]
+;;    [(cons (number: n) more) (cons (Num n) (parse-sexpr more))]
     [(symbol: name) (Id name)]
+;;    [(cons (symbol: name) more) (cons (Id name) (parse-sexpr more))]
     [(cons 'with more)
      (match sexpr
        [(list 'with (list (symbol: name) named) body)
@@ -85,16 +90,17 @@ The grammar:
        [(list 'fun (list (symbol: names) ...) body)
         (Fun names (parse-sexpr body))]
        [else (error 'parse-sexpr "bad `fun' syntax in ~s" sexpr)])]
+    [(cons 'call more)
+     (match more
+       [(list fun args ...)
+        (match args
+          [(list xprs ...) (Call (parse-sexpr fun) (get-list xprs))]
+          [else (error 'parse-sexpr "You screwed up")])]
+       [else (error 'parse-sexpr "lets go")])]
     [(list '+ lhs rhs) (Add (parse-sexpr lhs) (parse-sexpr rhs))]
     [(list '- lhs rhs) (Sub (parse-sexpr lhs) (parse-sexpr rhs))]
     [(list '* lhs rhs) (Mul (parse-sexpr lhs) (parse-sexpr rhs))]
     [(list '/ lhs rhs) (Div (parse-sexpr lhs) (parse-sexpr rhs))]
-    ;;    [(list 'call fun (list (number: args) ...))
-    [(list 'call more)
-     (match sexpr
-        [(list 'call fun (list (symbol: names) ...) body)
-        (Fun names (parse-sexpr body))]
-       [else (error 'parse-sexpr "bad `call` syntax in ~s" sexpr)])]
     [else (error 'parse-sexpr "bad syntax in ~s" sexpr)]))
 
 
@@ -131,6 +137,7 @@ The grammar:
 
 (: de-find : DE-ENV Symbol -> Natural)
 (define (de-find denv sym)
+  (println sym) (println denv) (println "-----")
   (cases denv
     [(DEmptyEnv) (error 'de-find "symbol does not exist")]
     [(DRest osym nat odenv) (if (equal? sym osym) nat (de-find odenv sym))]))
@@ -157,6 +164,7 @@ The grammar:
 (: eval : CORE ENV -> VAL)
 ;; evaluates BRANG expressions by reducing them to values
 (define (eval expr env)
+  (println expr)
   (cases expr
     [(CNum n) (NumV n)]
     [(CAdd l r) (arith-op + (eval l env) (eval r env))]
@@ -178,6 +186,8 @@ The grammar:
          [else (error 'eval "`call' expects a function, got: ~s"
                             fval)]))]))
 
+
+
 (: preprocess : BRANG DE-ENV -> CORE)
 (define (preprocess expr deenv)
   (cases expr
@@ -186,20 +196,19 @@ The grammar:
     [(Sub l r) (CSub (preprocess l deenv) (preprocess r deenv))]
     [(Mul l r) (CMul (preprocess l deenv) (preprocess r deenv))]
     [(Div l r) (CDiv (preprocess l deenv) (preprocess r deenv))]
-    [(MBrang fst rst)
-     (print (preprocess fst deenv))
-     (preprocess fst deenv)]
-;     (cases fst
-;       [(Num n) (
-;     (preprocess (Fun fst rst) deenv)]
     [(With bound-id named-expr bound-body)
      (let ([newenv (de-extend deenv bound-id)])
      (CCall (CFun (preprocess named-expr newenv)) (preprocess bound-body newenv)))]
     [(Id name) (CRef (de-find deenv name))]
     [(Fun bound-id bound-body)
-     (CFun (preprocess bound-body (de-extend deenv bound-id)))]
+     (cond
+       [(null? bound-id) (CFun (preprocess bound-body deenv))]
+       [else (let ([newenv (de-extend deenv (first bound-id))])
+                  (CFun (preprocess (Fun (rest bound-id) bound-body) newenv)))])]
     [(Call fun-expr arg-expr)
-     (CCall (preprocess fun-expr deenv) (preprocess arg-expr deenv))]))
+     (cond
+       [(null? arg-expr) (preprocess fun-expr deenv)]
+       [else (CCall (preprocess fun-expr deenv) (preprocess (first arg-expr) deenv))])]))
 
 
 (: run : String -> Number)
@@ -214,18 +223,21 @@ The grammar:
 
 
 ;; basic arithmatic tests
-(test (run "{call {fun {x y} {+ x y}} 1 5}") => 30)
-(test (run "5") => 5)
-(test (run "{+ 5 5}") => 10)
-(test (run "{- 6 5}") => 1)
-(test (run "{- 5 9}") => -4)
-(test (run "{/ 25 5}") => 5)
-(test (run "{/ 25 {* 3 4}}") => 25/12)
-(test (run "{* {+ {/ 30 6} -2} {- 6 4}}") => 6)
-
-;; tests
-(test (run "{call {fun {x} {+ x 1}} 4}")
-      => 5)
+(parse "{call {fun {x y} {+ x y}} 1 5}")
+(preprocess (parse "{call {fun {x y} {+ x y}} 1 5}") (DEmptyEnv))
+;
+;(test (run "{call {fun {x y} {+ x y}} 1 5}") => 30)
+;(test (run "5") => 5)
+;(test (run "{+ 5 5}") => 10)
+;(test (run "{- 6 5}") => 1)
+;(test (run "{- 5 9}") => -4)
+;(test (run "{/ 25 5}") => 5)
+;(test (run "{/ 25 {* 3 4}}") => 25/12)
+;(test (run "{* {+ {/ 30 6} -2} {- 6 4}}") => 6)
+;
+;;; tests
+;(test (run "{call {fun {x} {+ x 1}} 4}")
+;      => 5)
 
 ;(test (run "{with {add3 {fun {x} {+ x 3}}}
 ;              {call add3 1}}")
