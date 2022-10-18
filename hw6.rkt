@@ -70,7 +70,8 @@ The grammar:
 
 (: get-list : (Listof Sexpr) -> (Listof BRANG))
 (define (get-list li-sexpr)
-  (if (null? li-sexpr) '() (cons (parse-sexpr (first li-sexpr)) (get-list (rest li-sexpr)))))
+  (if (null? li-sexpr) '() (cons (parse-sexpr (first li-sexpr))
+                                 (get-list (rest li-sexpr)))))
 
 (: parse-sexpr : Sexpr ->  BRANG)
 ;; parses s-expressions into BRANGs
@@ -133,14 +134,16 @@ The grammar:
   (define (de-extend-internal denv sym count)
     (cases denv
       [(DEmptyEnv) (DRest sym count (DEmptyEnv))]
-      [(DRest osym nat odenv) (DRest osym nat (de-extend-internal odenv sym (+ 1 count)))]))
+      [(DRest osym nat odenv)
+       (DRest osym nat (de-extend-internal odenv sym (+ 1 count)))]))
   (de-extend-internal denv sym 0))
 
 (: de-find : DE-ENV Symbol -> Natural)
 (define (de-find denv sym)
   (cases denv
     [(DEmptyEnv) (error 'de-find "symbol does not exist")]
-    [(DRest osym nat odenv) (if (equal? sym osym) nat (de-find odenv sym))]))
+    [(DRest osym nat odenv)
+     (if (equal? sym osym) nat (de-find odenv sym))]))
 
 (: NumV->number : VAL -> Number)
 ;; convert a FLANG runtime numeric value to a Racket one
@@ -197,17 +200,22 @@ The grammar:
     [(Div l r) (CDiv (preprocess l deenv) (preprocess r deenv))]
     [(With bound-id named-expr bound-body)
      (let ([newenv (de-extend deenv bound-id)])
-      (CCall (CFun (preprocess bound-body newenv)) (preprocess named-expr deenv)))]
+      (CCall (CFun (preprocess bound-body newenv))
+             (preprocess named-expr deenv)))]
     [(Id name) (CRef (de-find deenv name))]
     [(Fun bound-id bound-body)
     (cond
        [(null? bound-id) (preprocess bound-body deenv)]
        [else (let ([newenv (de-extend deenv (first bound-id))])
-                  (CFun (preprocess (Fun (rest bound-id) bound-body) newenv)))])]
+                  (CFun (preprocess
+                         (Fun (rest bound-id) bound-body) newenv)))])]
     [(Call fun-expr arg-expr)
      (cond
        [(null? arg-expr) (preprocess fun-expr deenv)]
-       [else (CCall (preprocess (Call fun-expr (rest arg-expr)) deenv) (preprocess (first arg-expr) deenv))])]))
+       [else
+        (CCall
+         (preprocess (Call fun-expr (rest arg-expr)) deenv)
+         (preprocess (first arg-expr) deenv))])]))
 
 
 (: run : String -> Number)
@@ -220,13 +228,12 @@ The grammar:
                    result)])))
 
 
+(define minutes-spent 600)
 
 ;; basic arithmatic tests
-
-
-;(test (run "{with {add3 {fun {x} {+ x 3}}}
-;              {call add3 1}}")
-;      => 4)
+(test (run "{with {add3 {fun {x} {+ x 3}}}
+              {call add3 1}}")
+      => 4)
 
 (test (run "{call {call {fun {x} {fun {y} {+ x y}}} 1} 5}") => 6)
 
@@ -248,29 +255,29 @@ The grammar:
               {call add3 1}}")
       => 4)
 
-;(test (run "{with {add3 {fun {x} {+ x 3}}}
-;              {with {add1 {fun {x} {+ x 1}}}
-;                {with {x 3}
-;                  {call add1 {call add3 x}}}}}")
-;      => 7)
-;(test (run "{with {identity {fun {x} x}}
-;              {with {foo {fun {x} {+ x 1}}}
-;                {call {call identity foo} 123}}}")
-;      => 124)
-;(test (run "{with {x 3}
-;              {with {f {fun {y} {+ x y}}}
-;                {with {x 5}
-;                  {call f 4}}}}")
-;      => 7)
-;(test (run "{call {with {x 3}
-;                    {fun {y} {+ x y}}}
-;                  4}")
-;      => 7)
-;(test (run "{with {f {with {x 3} {fun {y} {+ x y}}}}
-;              {with {x 100}
-;                {call f 4}}}")
-;      => 7)
-;(test (run "{call {call {fun {x} {call x 1}}
-;                        {fun {x} {fun {y} {+ x y}}}}
-;                  123}")
-;      => 124)
+(test (run "{with {add3 {fun {x} {+ x 3}}}
+              {with {add1 {fun {x} {+ x 1}}}
+                {with {x 3}
+                  {call add1 {call add3 x}}}}}")
+      => 7)
+(test (run "{with {identity {fun {x} x}}
+              {with {foo {fun {x} {+ x 1}}}
+                {call {call identity foo} 123}}}")
+      => 124)
+(test (run "{with {x 3}
+              {with {f {fun {y} {+ x y}}}
+                {with {x 5}
+                  {call f 4}}}}")
+      => 7)
+(test (run "{call {with {x 3}
+                    {fun {y} {+ x y}}}
+                  4}")
+      => 7)
+(test (run "{with {f {with {x 3} {fun {y} {+ x y}}}}
+              {with {x 100}
+                {call f 4}}}")
+      => 7)
+(test (run "{call {call {fun {x} {call x 1}}
+                        {fun {x} {fun {y} {+ x y}}}}
+                  123}")
+      => 124)
