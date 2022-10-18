@@ -124,7 +124,8 @@ The grammar:
   [DEmptyEnv]
   [DRest Symbol Natural DE-ENV])
 
-(define de-empty-env (DEmptyEnv))
+(: de-empty-env : Symbol -> Natural)
+(define (de-empty-env s) (error 'de-empty-env "blah"))
 
 (: de-extend : DE-ENV Symbol -> DE-ENV)
 (define (de-extend denv sym)
