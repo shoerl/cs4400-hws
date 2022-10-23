@@ -128,6 +128,16 @@ language that users actually see.
 (test (e2 'a) => 0)                      ; e2 maps 'a to 0
 (test (e2 'b) => 1)                      ; and now 'b is mapped to 1
 
+
+(: preprocess-bindstar : (Listof Symbol) (Listof BRANG) BRANG -> BRANG)
+(define (preprocess-bindstar syms exprs body)
+     (if (or (null? exprs) (null? syms))
+         body
+         (Call (Fun (list (first syms)) (preprocess-bindstar (rest syms) (rest exprs) body)) (list (first exprs)))))
+
+
+
+  
 (: preprocess : BRANG DE-ENV -> CORE)
 ;; replaces identifier expressions into Ref AST values
 (define (preprocess expr de-env)
@@ -139,8 +149,13 @@ language that users actually see.
     [(Sub l r) (CSub (sub l) (sub r))]
     [(Mul l r) (CMul (sub l) (sub r))]
     [(Div l r) (CDiv (sub l) (sub r))]
-    [(Bind syms exprs body) (println expr) (CNum 0)]
-    [(Bind* syms exprs body) (println expr) (CNum 1)]
+    ;(bind [(x 5)] (bind [(x 2) (y x)]) ...) =>
+    ;(call (fun) (call (fun) 2) ( 5) 
+    [(Bind syms exprs body)
+
+     (println expr) (CNum 0)]
+    [(Bind* syms exprs body)
+     (sub (preprocess-bindstar syms exprs body))]
     [(With bound-id named-expr bound-body)
      ;; (CCall (sub (Fun (list bound-id) bound-body))
      ;;        (sub named-expr))
@@ -276,6 +291,7 @@ language that users actually see.
 ;;; Problem 2: Overriding function arguments
 ;(test (run "{with {x 4} {with {add {fun {x y} {+ x y}}} {call add x x}}}") => 8)
 ;
+(test (run "{bind* {{x 1} {y {+ x 1}}} {+ x y}}") => 3)
 
 (test (run "{bind {{x 1} {y 2}} {+ x y}}") => 5)
 ;
