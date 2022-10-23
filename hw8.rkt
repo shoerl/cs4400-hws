@@ -62,13 +62,19 @@ language that users actually see.
        [(list 'with (list (symbol: name) named) body)
         (With name (parse-sexpr named) (parse-sexpr body))]
        [else (error 'parse-sexpr "bad `with' syntax in ~s" sexpr)])]
+
+
+    
     [(cons (or 'bind 'bind*) more)
      (match sexpr
        [(list (symbol: binder) exprs body)
         (println exprs)
         (if (eq? binder 'bind)
-            (Bind (map parse-sexpr insert-rest-of-first-expression-here))
-            (insert-second-expression-here))])]
+            (Num 5)
+            (Num 10))])]
+
+
+    
     [(cons 'fun more)
      (match sexpr
        [(list 'fun (list (symbol: names) ...) body)
@@ -87,6 +93,12 @@ language that users actually see.
        [else (error 'parse-sexpr "missing arguments to `call' in ~s"
                     sexpr)])]
     [else (error 'parse-sexpr "bad syntax in ~s" sexpr)]))
+
+(: unzip-binds : (All (A B) (Listof (List A B)) -> (List (Listof A) (Listof B))))
+(define (unzip-binds binds)
+  (if (null? binds) '(()())
+      (let ([vals (first binds)] [next (unzip-binds (rest binds))])
+        (list (cons (first vals)(first next))(cons (cadr vals) (cadr next))))))
 
 (: parse : String -> BRANG)
 ;; parses a string containing a BRANG expression to a BRANG AST
