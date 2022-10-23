@@ -1,4 +1,4 @@
-#lang pl 06
+#lang pl 08
 
 #|
 The grammar:
@@ -73,7 +73,8 @@ language that users actually see.
      (match sexpr
        [(list 'fun (list (symbol: names) ...) body)
         (if (null? names)
-          (error 'parse-sexpr "`fun' with no arguments in ~s" sexpr)
+          (Fun (list 'xd) (parse-sexpr body))
+          ;(error 'parse-sexpr "`fun' with no arguments in ~s" sexpr)
           (Fun names (parse-sexpr body)))]
        [else (error 'parse-sexpr "bad `fun' syntax in ~s" sexpr)])]
     [(list '+ lhs rhs) (Add (parse-sexpr lhs) (parse-sexpr rhs))]
@@ -84,6 +85,8 @@ language that users actually see.
      (match sexpr
        [(list 'call fun arg args ...)
         (Call (parse-sexpr fun) (map parse-sexpr (cons arg args)))]
+       [(list 'call fun)
+        (Call (parse-sexpr fun) (map parse-sexpr '(10)))]
        [else (error 'parse-sexpr "missing arguments to `call' in ~s"
                     sexpr)])]
     [else (error 'parse-sexpr "bad syntax in ~s" sexpr)]))
@@ -245,9 +248,9 @@ language that users actually see.
 ;(test (run "{call {fun {x} {+ x 1}} 4}")
 ;      => 5)
 
-(test (run "{with {add3 {fun {x} {+ x 3}}}
-              {call add3 1}}")
-      => 4)
+;(test (run "{with {add3 {fun {x} {+ x 3}}}
+;              {call add3 1}}")
+;      => 4)
 
 ;(test (run "{with {add3 {fun {x} {+ x 3}}}
 ;              {with {add1 {fun {x} {+ x 1}}}
@@ -314,9 +317,13 @@ language that users actually see.
 ;(test (run "{with {x 4} {with {add {fun {x y} {+ x y}}} {call add x x}}}") => 8)
 ;
 
-(test (run "{bind {{x 5}} {bind {{x 2} {y x}} {+ y y}}}") => 10)
-(test (run "{bind* {{x 5}} {bind* {{x 2} {y x}} {+ y y}}}") => 4)
-(test (run "{bind* {{x 1} {y {+ x 1}}} {+ x y}}") => 3)
+(test (run "{call {fun {x} {* 0 x}}}") => 0)
+
+(test (run "{call {fun {} {* 1 15}} 30}") => 15)
+
+;(test (run "{bind {{x 5}} {bind {{x 2} {y x}} {+ y y}}}") => 10)
+;(test (run "{bind* {{x 5}} {bind* {{x 2} {y x}} {+ y y}}}") => 4)
+;(test (run "{bind* {{x 1} {y {+ x 1}}} {+ x y}}") => 3)
 
 ;(test (run "{bind {{x 1} {y 2}} {+ x y}}") => 5)
 ;
