@@ -60,6 +60,9 @@ language that users actually see.
     [(cons 'with more)
      (match sexpr
        [(list 'with (list (symbol: name) named) body)
+        (println name)
+        (println named)
+        (println body)
         (With name (parse-sexpr named) (parse-sexpr body))]
        [else (error 'parse-sexpr "bad `with' syntax in ~s" sexpr)])]
 
@@ -69,6 +72,9 @@ language that users actually see.
      (match sexpr
        [(list (symbol: binder) exprs body)
         (println exprs)
+        ;(println (map parse-sexpr exprs))
+        (println body)
+        ;(println (unzip-binds exprs))
         (if (eq? binder 'bind)
             (Num 5)
             (Num 10))])]
@@ -215,74 +221,76 @@ language that users actually see.
                    result)])))
 
 ;; tests
-(test (run "{call {fun {x} {+ x 1}} 4}")
-      => 5)
+;(test (run "{call {fun {x} {+ x 1}} 4}")
+;      => 5)
+
 (test (run "{with {add3 {fun {x} {+ x 3}}}
               {call add3 1}}")
       => 4)
-(test (run "{with {add3 {fun {x} {+ x 3}}}
-              {with {add1 {fun {x} {+ x 1}}}
-                {with {x 3}
-                  {call add1 {call add3 x}}}}}")
-      => 7)
-(test (run "{with {identity {fun {x} x}}
-              {with {foo {fun {x} {+ x 1}}}
-                {call {call identity foo} 123}}}")
-      => 124)
-(test (run "{with {x 3}
-              {with {f {fun {y} {+ x y}}}
-                {with {x 5}
-                  {call f 4}}}}")
-      => 7)
-(test (run "{call {call {fun {x} {call x 1}}
-                        {fun {x} {fun {y} {+ x y}}}}
-                  123}")
-      => 124)
 
-;; test remaining arithmetic functions
-(test (run "{call {fun {x} {- x 1}} 4}")
-      => 3)
-(test (run "{call {fun {x} {* x 3}} 4}")
-      => 12)
-(test (run "{call {fun {x} {/ x 2}} 4}")
-      => 2)
-
-;; test errors
-(test (run "{call {fun {x} {? x 1}} 4}")
-      =error> "bad syntax in")
-(test (run "{call {fun {x} {+ y 1}} 4}")
-      =error> "Free identifier: y")
-(test (run "{call {fun {x} } 4}")
-      =error> "bad `fun' syntax")
-(test (run "{call {fun {x} } 4}")
-      =error> "bad `fun' syntax")
-(test (run "{fun {} 1}")
-      =error> "`fun' with no arguments")
-(test (run "{with {y} }")
-      =error> "bad `with' syntax")
-(test (run "{fun {x} {+ x x}}")
-      =error> "evaluation returned a non-number")
-(test (run "{+}")
-      =error> "bad syntax in (+)")
-(test (run "{+ {fun {x} x} 1}")
-      =error> "arith-op: expected a number")
-(test (run "{call 1 1}")
-      =error> "expects a function")
-(test (run "{call {fun {x} x}}")
-      =error> "missing arguments to `call'")
-
-;; test multiple-argument functions
-(test (run "{with {add {fun {x y} {+ x y}}} {call add 7 8}}")
-      => 15)
-(test (run "{with {add {fun {x y} {- x y}}} {call add 10 4}}")
-      => 6)
-
-;; Problem 1: This shouldn't work (implicitly currying a two function argument)
-(test (run "{with {add {fun {x y} {- x y}}} {call {call add 10} 5}}")
-      => 5)
-
-;; Problem 2: Overriding function arguments
-(test (run "{with {x 4} {with {add {fun {x y} {+ x y}}} {call add x x}}}") => 8)
-
-(test (run "{bind {{x 1} {y 2}} {+ x y}}") => 3)
-
+;(test (run "{with {add3 {fun {x} {+ x 3}}}
+;              {with {add1 {fun {x} {+ x 1}}}
+;                {with {x 3}
+;                  {call add1 {call add3 x}}}}}")
+;      => 7)
+;(test (run "{with {identity {fun {x} x}}
+;              {with {foo {fun {x} {+ x 1}}}
+;                {call {call identity foo} 123}}}")
+;      => 124)
+;(test (run "{with {x 3}
+;              {with {f {fun {y} {+ x y}}}
+;                {with {x 5}
+;                  {call f 4}}}}")
+;      => 7)
+;(test (run "{call {call {fun {x} {call x 1}}
+;                        {fun {x} {fun {y} {+ x y}}}}
+;                  123}")
+;      => 124)
+;
+;;; test remaining arithmetic functions
+;(test (run "{call {fun {x} {- x 1}} 4}")
+;      => 3)
+;(test (run "{call {fun {x} {* x 3}} 4}")
+;      => 12)
+;(test (run "{call {fun {x} {/ x 2}} 4}")
+;      => 2)
+;
+;;; test errors
+;(test (run "{call {fun {x} {? x 1}} 4}")
+;      =error> "bad syntax in")
+;(test (run "{call {fun {x} {+ y 1}} 4}")
+;      =error> "Free identifier: y")
+;(test (run "{call {fun {x} } 4}")
+;      =error> "bad `fun' syntax")
+;(test (run "{call {fun {x} } 4}")
+;      =error> "bad `fun' syntax")
+;(test (run "{fun {} 1}")
+;      =error> "`fun' with no arguments")
+;(test (run "{with {y} }")
+;      =error> "bad `with' syntax")
+;(test (run "{fun {x} {+ x x}}")
+;      =error> "evaluation returned a non-number")
+;(test (run "{+}")
+;      =error> "bad syntax in (+)")
+;(test (run "{+ {fun {x} x} 1}")
+;      =error> "arith-op: expected a number")
+;(test (run "{call 1 1}")
+;      =error> "expects a function")
+;(test (run "{call {fun {x} x}}")
+;      =error> "missing arguments to `call'")
+;
+;;; test multiple-argument functions
+;(test (run "{with {add {fun {x y} {+ x y}}} {call add 7 8}}")
+;      => 15)
+;(test (run "{with {add {fun {x y} {- x y}}} {call add 10 4}}")
+;      => 6)
+;
+;;; Problem 1: This shouldn't work (implicitly currying a two function argument)
+;(test (run "{with {add {fun {x y} {- x y}}} {call {call add 10} 5}}")
+;      => 5)
+;
+;;; Problem 2: Overriding function arguments
+;(test (run "{with {x 4} {with {add {fun {x y} {+ x y}}} {call add x x}}}") => 8)
+;
+(test (run "{bind {{x 1} {y 2} {z 3}} {+ x y z}}") => 3)
+;
