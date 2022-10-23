@@ -60,27 +60,15 @@ language that users actually see.
     [(cons 'with more)
      (match sexpr
        [(list 'with (list (symbol: name) named) body)
-        (println name)
-        (println named)
-        (println body)
         (With name (parse-sexpr named) (parse-sexpr body))]
-       [else (error 'parse-sexpr "bad `with' syntax in ~s" sexpr)])]
-
-
-    
+       [else (error 'parse-sexpr "bad `with' syntax in ~s" sexpr)])]    
     [(cons (or 'bind 'bind*) more)
      (match sexpr
-       [(list (symbol: binder) exprs body)
-        (println exprs)
-        ;(println (map parse-sexpr exprs))
-        (println body)
-        ;(println (unzip-binds exprs))
+       [(list (symbol: binder) (list (list (symbol: s) (sexpr: se)) ...) body)
         (if (eq? binder 'bind)
-            (Num 5)
-            (Num 10))])]
-
-
-    
+            (Bind s (map parse-sexpr se) (parse-sexpr body))
+            (Bind* s (map parse-sexpr se) (parse-sexpr body))
+            )])]
     [(cons 'fun more)
      (match sexpr
        [(list 'fun (list (symbol: names) ...) body)
@@ -99,12 +87,6 @@ language that users actually see.
        [else (error 'parse-sexpr "missing arguments to `call' in ~s"
                     sexpr)])]
     [else (error 'parse-sexpr "bad syntax in ~s" sexpr)]))
-
-(: unzip-binds : (All (A B) (Listof (List A B)) -> (List (Listof A) (Listof B))))
-(define (unzip-binds binds)
-  (if (null? binds) '(()())
-      (let ([vals (first binds)] [next (unzip-binds (rest binds))])
-        (list (cons (first vals)(first next))(cons (cadr vals) (cadr next))))))
 
 (: parse : String -> BRANG)
 ;; parses a string containing a BRANG expression to a BRANG AST
@@ -136,6 +118,8 @@ language that users actually see.
     (if (eq? id name)
       0
       (+ 1 (env name)))))
+
+
 ;; tests, only for demonstration:
 (define e1 (de-extend de-empty-env 'b))
 (define e2 (de-extend e1 'a))
@@ -292,5 +276,6 @@ language that users actually see.
 ;;; Problem 2: Overriding function arguments
 ;(test (run "{with {x 4} {with {add {fun {x y} {+ x y}}} {call add x x}}}") => 8)
 ;
-(test (run "{bind {{x 1} {y 2} {z 3}} {+ x y z}}") => 3)
+
+(test (run "{bind {{x 1} {y 2}} {+ x y}}") => 5)
 ;
