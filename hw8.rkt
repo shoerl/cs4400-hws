@@ -64,7 +64,8 @@ language that users actually see.
        [else (error 'parse-sexpr "bad `with' syntax in ~s" sexpr)])]    
     [(cons (or 'bind 'bind*) more)
      (match sexpr
-       [(list (symbol: binder) (list (list (symbol: s) (sexpr: se)) ...) body)
+       [(list (symbol: binder)
+              (list (list (symbol: s) (sexpr: se)) ...) body)
         (if (eq? binder 'bind)
             (Bind s (map parse-sexpr se) (parse-sexpr body))
             (Bind* s (map parse-sexpr se) (parse-sexpr body))
@@ -83,8 +84,7 @@ language that users actually see.
        [(list 'call fun arg args ...)
         (println arg)
         (Call (parse-sexpr fun) (map parse-sexpr (cons arg args)))]
-       [(list 'call fun arg ...)
-        (println arg)
+       [(list 'call fun)
         (Call (parse-sexpr fun) (map parse-sexpr '(0)))])]
     [else (error 'parse-sexpr "bad syntax in ~s" sexpr)]))
 
@@ -104,14 +104,19 @@ language that users actually see.
 ;; Syntactic environments for the de-Bruijn preprocessing:
 ;; define a type and an empty environment
 
-(define-type DE-ENV = (U Boolean Symbol) -> Natural)
+
+(define-type IDENTIFIER = (U #f Symbol))
+
+(define-type DE-ENV = IDENTIFIER -> Natural)
+
 
 (: de-empty-env : DE-ENV)
 ;; the empty syntactic environment, always throws an error
 (define (de-empty-env id)
   (error 'de-env "Free identifier: ~s" id))
 
-(: de-extend : DE-ENV (U Boolean Symbol) -> DE-ENV)
+
+(: de-extend : DE-ENV IDENTIFIER -> DE-ENV)
 ;; extends a given de-env for a new identifier
 (define (de-extend env id)
   (lambda (name)
@@ -129,40 +134,19 @@ language that users actually see.
 (test (e2 'b) => 1)                      ; and now 'b is mapped to 1
 
 
-
 (: preprocess-bind : BRANG -> BRANG )
 (define (preprocess-bind expr)
   (cases expr
-    [(Num n) (Num n)]
-    [(Add l r) (Add l r)]
-    [(Sub l r) (Sub l r)]
-    [(Mul l r) (Mul l r)]
-    [(Div l r) (Div l r)]
     [(Bind syms exprs bound-body)
-     (if (or (null? exprs) (null? syms)) bound-body
-     (Call (Fun syms (preprocess-bind bound-body)) exprs))]
+     (Call (Fun syms (preprocess-bind bound-body)) exprs)]
     [(Bind* syms exprs bound-body)
-     (if (or (null? exprs) (null? syms)) bound-body
-     (Call (Fun (list (first syms)) (preprocess-bind (Bind* (rest syms) (rest exprs) bound-body))) (list (first exprs))))]
-    [(With bound-id named-expr bound-body) (With bound-id named-expr bound-body)]
-    [(Id name) (Id name)]
-    [(Fun bound-ids bound-body) (Fun bound-ids bound-body)]
-    [(Call fun-expr arg-exprs) (Call fun-expr arg-exprs)]))
-
-
-  
-;(: preprocess-bindstar : (Listof Symbol) (Listof BRANG) BRANG -> BRANG)
-;(define (preprocess-bindstar syms exprs body)
-;     (if (or (null? exprs) (null? syms))
-;         body
-;         (Call (Fun (list (first syms)) (preprocess-bindstar (rest syms) (rest exprs) body)) (list (first exprs)))))
-;
-;
-;(: preprocess-bind : (Listof Symbol) (Listof BRANG) BRANG -> BRANG)
-;(define (preprocess-bind syms exprs body)
-;     (if (or (null? exprs) (null? syms))
-;         body
-;         (Call (Fun (list syms) (preprocess-binds (rest syms) (rest exprs) body)) (list (first exprs))
+     (if (or (null? exprs) (null? syms))
+         bound-body
+         (Call (Fun (list (first syms))
+                (preprocess-bind
+                 (Bind* (rest syms) (rest exprs) bound-body)))
+               (list (first exprs))))]
+    [else expr]))
 
   
 (: preprocess : BRANG DE-ENV -> CORE)
@@ -197,12 +181,15 @@ language that users actually see.
        [else (sub (Fun (list (first bound-ids))
                  (Fun (rest bound-ids) bound-body)))])]
     [(Call fun-expr arg-exprs)
-     ;; note that arg-exprs are never empty
-     (if (= 1 (length arg-exprs))
-       (CCall (sub fun-expr) (sub (first arg-exprs)))
-       ;; and a similar choice here too
-       (sub (Call (Call fun-expr (list (first arg-exprs)))
-                  (rest arg-exprs))))]))
+     (cond
+       [(> 1 (length arg-exprs))
+        (CCall (sub fun-expr) (CNum 0))]
+       [(= 1 (length arg-exprs))
+        (CCall (sub fun-expr) (sub (first arg-exprs)))]
+       [else
+         (sub (Call (Call fun-expr (list (first arg-exprs)))
+                  (rest arg-exprs)))])]))
+
 
 (: NumV->number : VAL -> Number)
 ;; convert a FLANG runtime numeric value to a Racket one
@@ -245,89 +232,111 @@ language that users actually see.
       [else (error 'run "evaluation returned a non-number: ~s"
                    result)])))
 
-;; tests
-;(test (run "{call {fun {x} {+ x 1}} 4}")
-;      => 5)
 
-;(test (run "{with {add3 {fun {x} {+ x 3}}}
-;              {call add3 1}}")
-;      => 4)
+(define minutes-spent 350)
 
-;(test (run "{with {add3 {fun {x} {+ x 3}}}
-;              {with {add1 {fun {x} {+ x 1}}}
-;                {with {x 3}
-;                  {call add1 {call add3 x}}}}}")
-;      => 7)
-;(test (run "{with {identity {fun {x} x}}
-;              {with {foo {fun {x} {+ x 1}}}
-;                {call {call identity foo} 123}}}")
-;      => 124)
-;(test (run "{with {x 3}
-;              {with {f {fun {y} {+ x y}}}
-;                {with {x 5}
-;                  {call f 4}}}}")
-;      => 7)
-;(test (run "{call {call {fun {x} {call x 1}}
-;                        {fun {x} {fun {y} {+ x y}}}}
-;                  123}")
-;      => 124)
-;
-;;; test remaining arithmetic functions
-;(test (run "{call {fun {x} {- x 1}} 4}")
-;      => 3)
-;(test (run "{call {fun {x} {* x 3}} 4}")
-;      => 12)
-;(test (run "{call {fun {x} {/ x 2}} 4}")
-;      => 2)
-;
-;;; test errors
-;(test (run "{call {fun {x} {? x 1}} 4}")
-;      =error> "bad syntax in")
-;(test (run "{call {fun {x} {+ y 1}} 4}")
-;      =error> "Free identifier: y")
-;(test (run "{call {fun {x} } 4}")
-;      =error> "bad `fun' syntax")
-;(test (run "{call {fun {x} } 4}")
-;      =error> "bad `fun' syntax")
-;(test (run "{fun {} 1}")
-;      =error> "`fun' with no arguments")
-;(test (run "{with {y} }")
-;      =error> "bad `with' syntax")
-;(test (run "{fun {x} {+ x x}}")
-;      =error> "evaluation returned a non-number")
-;(test (run "{+}")
-;      =error> "bad syntax in (+)")
-;(test (run "{+ {fun {x} x} 1}")
-;      =error> "arith-op: expected a number")
-;(test (run "{call 1 1}")
-;      =error> "expects a function")
-;(test (run "{call {fun {x} x}}")
-;      =error> "missing arguments to `call'")
-;
-;;; test multiple-argument functions
-;(test (run "{with {add {fun {x y} {+ x y}}} {call add 7 8}}")
-;      => 15)
-;(test (run "{with {add {fun {x y} {- x y}}} {call add 10 4}}")
-;      => 6)
-;
-;;; Problem 1: This shouldn't work (implicitly currying a two function argument)
-;(test (run "{with {add {fun {x y} {- x y}}} {call {call add 10} 5}}")
-;      => 5)
-;
-;;; Problem 2: Overriding function arguments
-;(test (run "{with {x 4} {with {add {fun {x y} {+ x y}}} {call add x x}}}") => 8)
-;
+; tests
+(test (run "{call {fun {x} {+ x 1}} 4}")
+      => 5)
+
+(test (run "{with {add3 {fun {x} {+ x 3}}}
+              {call add3 1}}")
+      => 4)
+
+(test (run "{with {add3 {fun {x} {+ x 3}}}
+              {with {add1 {fun {x} {+ x 1}}}
+                {with {x 3}
+                  {call add1 {call add3 x}}}}}")
+      => 7)
+(test (run "{with {identity {fun {x} x}}
+              {with {foo {fun {x} {+ x 1}}}
+                {call {call identity foo} 123}}}")
+      => 124)
+(test (run "{with {x 3}
+              {with {f {fun {y} {+ x y}}}
+                {with {x 5}
+                  {call f 4}}}}")
+      => 7)
+(test (run "{call {call {fun {x} {call x 1}}
+                        {fun {x} {fun {y} {+ x y}}}}
+                  123}")
+      => 124)
+
+;; test remaining arithmetic functions
+(test (run "{call {fun {x} {- x 1}} 4}")
+      => 3)
+(test (run "{call {fun {x} {* x 3}} 4}")
+      => 12)
+(test (run "{call {fun {x} {/ x 2}} 4}")
+      => 2)
+
+;; test errors
+(test (run "{call {fun {x} {? x 1}} 4}")
+      =error> "bad syntax in")
+(test (run "{call {fun {x} {+ y 1}} 4}")
+      =error> "Free identifier: y")
+(test (run "{call {fun {x} } 4}")
+      =error> "bad `fun' syntax")
+(test (run "{call {fun {x} } 4}")
+      =error> "bad `fun' syntax")
+(test (run "{fun {} 1}")
+      =error>
+      (string-append
+       "run: evaluation returned a non-number:"
+       " #(struct:FunV #(struct:CNum 1) ())"))
+(test (run "{with {y} }")
+      =error> "bad `with' syntax")
+(test (run "{fun {x} {+ x x}}")
+      =error> "evaluation returned a non-number")
+(test (run "{+}")
+      =error> "bad syntax in (+)")
+(test (run "{+ {fun {x} x} 1}")
+      =error> "arith-op: expected a number")
+(test (run "{call 1 1}")
+      =error> "expects a function")
+
+(test (run "{call {fun {} 1}}") => 1)
+
+;; test multiple-argument functions
+(test (run "{with {add {fun {x y} {+ x y}}} {call add 7 8}}")
+      => 15)
+(test (run "{with {add {fun {x y} {- x y}}} {call add 10 4}}")
+      => 6)
+
+;; Problem 1: This shouldn't work
+; (implicitly currying a two function argument)
+(test (run "{with {add {fun {x y} {- x y}}} {call {call add 10} 5}}")
+      => 5)
+
+;; Problem 2: Overriding function arguments
+(test (run "{with {x 4} {with {add {fun {x y} {+ x y}}} {call add x x}}}")
+      => 8)
+
+
+(test (run "{call {fun {x} x}}")
+      => 0)
+
+
+(test (run "{call {fun {} 3} 3}")
+      => 3)
+
+
+
+(test (run "{bind {{x 5}} {bind {{x 2} {y x}} {+ y y}}}") => 10)
+(test (run "{bind* {{x 5}} {bind* {{x 2} {y x}} {+ y y}}}") => 4)
+
+(test (run "{bind* {{x 1} {y {+ x 1}}} {+ x y}}") => 3)
+
+(test (run "{bind {{x 1} {y 2}} {+ x y}}") => 3)
 
 (test (run "{call {fun {x} {* 0 x}}}") => 0)
 
 (test (run "{call {fun {} {* 1 15}} 30}") => 15)
 
-;(test (run "{bind {{x 5}} {bind {{x 2} {y x}} {+ y y}}}") => 10)
-;(test (run "{bind* {{x 5}} {bind* {{x 2} {y x}} {+ y y}}}") => 4)
-;(test (run "{bind* {{x 1} {y {+ x 1}}} {+ x y}}") => 3)
+(test (run "{bind {{dummy 5}} {call {fun {x} {+ x 10}}}}") => 10)
 
-;(test (run "{bind {{x 1} {y 2}} {+ x y}}") => 5)
-;
+(test (run "{call {fun {} {* 1 15}} 30}") => 15)
 
-(test (run "{call {fun {x} {+ x 24}}}") => 24)
-(test (run "{call {fun {} 50} 10}") => 50)
+
+(test (run "{bind {} {+ 1 2}}") => 3)
+
