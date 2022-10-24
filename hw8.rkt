@@ -72,10 +72,7 @@ language that users actually see.
     [(cons 'fun more)
      (match sexpr
        [(list 'fun (list (symbol: names) ...) body)
-        (if (null? names)
-          (Fun (list 'xd) (parse-sexpr body))
-          ;(error 'parse-sexpr "`fun' with no arguments in ~s" sexpr)
-          (Fun names (parse-sexpr body)))]
+          (Fun names (parse-sexpr body))]
        [else (error 'parse-sexpr "bad `fun' syntax in ~s" sexpr)])]
     [(list '+ lhs rhs) (Add (parse-sexpr lhs) (parse-sexpr rhs))]
     [(list '- lhs rhs) (Sub (parse-sexpr lhs) (parse-sexpr rhs))]
@@ -84,11 +81,11 @@ language that users actually see.
     [(cons 'call more)
      (match sexpr
        [(list 'call fun arg args ...)
+        (println arg)
         (Call (parse-sexpr fun) (map parse-sexpr (cons arg args)))]
-       [(list 'call fun)
-        (Call (parse-sexpr fun) (map parse-sexpr '(10)))]
-       [else (error 'parse-sexpr "missing arguments to `call' in ~s"
-                    sexpr)])]
+       [(list 'call fun arg ...)
+        (println arg)
+        (Call (parse-sexpr fun) (map parse-sexpr '(0)))])]
     [else (error 'parse-sexpr "bad syntax in ~s" sexpr)]))
 
 (: parse : String -> BRANG)
@@ -107,14 +104,14 @@ language that users actually see.
 ;; Syntactic environments for the de-Bruijn preprocessing:
 ;; define a type and an empty environment
 
-(define-type DE-ENV = Symbol -> Natural)
+(define-type DE-ENV = (U Boolean Symbol) -> Natural)
 
 (: de-empty-env : DE-ENV)
 ;; the empty syntactic environment, always throws an error
 (define (de-empty-env id)
   (error 'de-env "Free identifier: ~s" id))
 
-(: de-extend : DE-ENV Symbol -> DE-ENV)
+(: de-extend : DE-ENV (U Boolean Symbol) -> DE-ENV)
 ;; extends a given de-env for a new identifier
 (define (de-extend env id)
   (lambda (name)
@@ -189,12 +186,16 @@ language that users actually see.
     [(Id name) (CRef (de-env name))]
     [(Fun bound-ids bound-body)
      ;; note that bound-ids are never empty
-     (if (= 1 (length bound-ids))
-       (CFun (preprocess bound-body
-                         (de-extend de-env (first bound-ids))))
+     (cond
+       [(> 1 (length bound-ids))
+        (CFun (preprocess bound-body
+                          (de-extend de-env #f)))]
+       [(= 1 (length bound-ids))
+        (CFun (preprocess bound-body
+                          (de-extend de-env (first bound-ids))))]
        ;; similar choice to the above here
-       (sub (Fun (list (first bound-ids))
-                 (Fun (rest bound-ids) bound-body))))]
+       [else (sub (Fun (list (first bound-ids))
+                 (Fun (rest bound-ids) bound-body)))])]
     [(Call fun-expr arg-exprs)
      ;; note that arg-exprs are never empty
      (if (= 1 (length arg-exprs))
@@ -327,3 +328,6 @@ language that users actually see.
 
 ;(test (run "{bind {{x 1} {y 2}} {+ x y}}") => 5)
 ;
+
+(test (run "{call {fun {x} {+ x 24}}}") => 24)
+(test (run "{call {fun {} 50} 10}") => 50)
