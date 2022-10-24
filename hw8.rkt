@@ -73,10 +73,7 @@ language that users actually see.
     [(cons 'fun more)
      (match sexpr
        [(list 'fun (list (symbol: names) ...) body)
-        (if (null? names)
-          (Fun (list 'xd) (parse-sexpr body))
-          ;(error 'parse-sexpr "`fun' with no arguments in ~s" sexpr)
-          (Fun names (parse-sexpr body)))]
+          (Fun names (parse-sexpr body))]
        [else (error 'parse-sexpr "bad `fun' syntax in ~s" sexpr)])]
     [(list '+ lhs rhs) (Add (parse-sexpr lhs) (parse-sexpr rhs))]
     [(list '- lhs rhs) (Sub (parse-sexpr lhs) (parse-sexpr rhs))]
@@ -85,6 +82,7 @@ language that users actually see.
     [(cons 'call more)
      (match sexpr
        [(list 'call fun arg args ...)
+        (println arg)
         (Call (parse-sexpr fun) (map parse-sexpr (cons arg args)))]
        [(list 'call fun)
         (Call (parse-sexpr fun) (map parse-sexpr '(0)))])]
@@ -106,14 +104,17 @@ language that users actually see.
 ;; Syntactic environments for the de-Bruijn preprocessing:
 ;; define a type and an empty environment
 
+
 (define-type IDENTIFIER = (U #f Symbol))
 
 (define-type DE-ENV = IDENTIFIER -> Natural)
+
 
 (: de-empty-env : DE-ENV)
 ;; the empty syntactic environment, always throws an error
 (define (de-empty-env id)
   (error 'de-env "Free identifier: ~s" id))
+
 
 (: de-extend : DE-ENV IDENTIFIER -> DE-ENV)
 ;; extends a given de-env for a new identifier
@@ -336,4 +337,6 @@ language that users actually see.
 
 (test (run "{call {fun {} {* 1 15}} 30}") => 15)
 
+
 (test (run "{bind {} {+ 1 2}}") => 3)
+
