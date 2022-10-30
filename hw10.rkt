@@ -173,22 +173,24 @@
 
 ;; permutations : (Listof A) -> (Listof (Listof A))
 ;; returns a list of all possible permutations of the input list
+
 (define/rec permutations
   (lambda (list)
     (if (null? list)
-      (cons null null)
-      (append (interleave (car list) (cdr list)) (permutations (cdr list))))))
-
-;       use `append*', `interleave', and a recursive call to
-      ; `permutations'
+        (cons null null)
+        
+    (permutations-help list 0 null)))
 
 
 
 ;; tests
 
+
+(test (->listof (->listof ->nat) (append-no-d (cons (cons 1 (cons 2 null)) null) (cons (cons 2 (cons 1 null)) null))) => '((2))) 
+
 (test (->listof (->listof ->nat) (permutations l123))
       => '((1 2 3) (2 1 3) (2 3 1) (1 3 2) (3 1 2) (3 2 1)))
-;
+
 ;(test (->listof (->listof ->nat) (permutations null))
 ;      => '(()))
 ;
