@@ -130,9 +130,21 @@
 ;; interleave : A (Listof A) -> (Listof (Listof A))
 ;; consumes an item and a list, and returns a list of lists where the
 ;; item is inserted at all possible places in the original list.
+;(define/rec interleave-helper
+;  (lambda (x lis n)
+;    (if (zero? (list-len lis))
+;        (cons (insertat x lis n) null)
+;        (if (zero? (diff (+ 1 n) (list-len lis)))
+;            (insertat x lis n)
+;            (cons (insertat x lis n) (interleave-helper x lis (+ n 1)))))))
+
+
+
 (define/rec interleave-helper
-  (lambda (x list n)
-    (if (= n (list-len list)) (cons (insertat x list n) list) (cons (insertat x list n) (interleave-helper x list (+ n 1))))))
+  (lambda (x lis n)
+    (if (zero? (diff n (list-len lis)))
+            (cons (insertat x lis n) null)
+            (cons (insertat x lis n) (interleave-helper x lis (+ n 1))))))
 
 (define/rec interleave
   (lambda (x list)
@@ -141,10 +153,23 @@
 ;; tests
 (test (->listof ->nat (map add1 null)) => '())
 
-(test (->listof (->listof ->nat) (interleave 0 null)) => '((0)))
+(test (->listof ->nat (insertat 0 l123 0)) => '(0 1 2 3))
+(test (->listof ->nat (insertat 0 l123 1)) => '(1 0 2 3))
+(test (->listof ->nat (insertat 0 l123 2)) => '(1 2 0 3))
+(test (->listof ->nat (insertat 0 l123 3)) => '(1 2 3 0))
 
 (test (->listof (->listof ->nat) (interleave 0 l123))
       => '((0 1 2 3) (1 0 2 3) (1 2 0 3) (1 2 3 0)))
+
+(test (->listof (->listof ->nat) (interleave 0 null)) => '((0)))
+
+(test (->nat (list-len null)) => '0)
+(test (->nat (list-len (cons 3 (cons 2 null)))) => '2)
+
+(test (->bool (zero? (diff (+ 1 0) (list-len (cons 3 null))))) => '#t)
+
+(test (->listof (->listof ->nat) (interleave 0 (cons 3 null))) => '((0 3) (3 0)))
+
 
 ;; permutations : (Listof A) -> (Listof (Listof A))
 ;; returns a list of all possible permutations of the input list
@@ -152,20 +177,26 @@
   (lambda (list)
     (if (null? list)
       (cons null null)
-      (cons (append* (interleave (car list) (cdr list)))
-            (permutations (cdr list))))))
+      (if (null? (cdr list))
+          (cons (append* (interleave (car list) null))
+                 null)
+          (cons (append* (interleave (car list) (cdr list)))
+                (permutations (cdr list)))))))
       ;; use `append*', `interleave', and a recursive call to
       ;; `permutations'
 
 ;; tests
 (test (->listof (->listof ->nat) (permutations null))
       => '(()))
+
 (test (->listof (->listof ->nat) (permutations (cons 1 null)))
       => '((1)))
+
+
 ;; Note that this test relies on a specific implementation; a proper test would
 ;; need to compare the output as a set of values.  In your case, you might have
 ;; a different result, but it is likely that you will get the same.
-(test (->listof (->listof ->nat (permutations l123)))
+(test (->listof (->listof ->nat) (permutations l123))
       => '((1 2 3) (2 1 3) (2 3 1) (1 3 2) (3 1 2) (3 2 1)))
 
 ;;; filter : (A -> Bool) (Listof A) -> (Listof A)
