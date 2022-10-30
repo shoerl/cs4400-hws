@@ -132,11 +132,11 @@
 ;; item is inserted at all possible places in the original list.
 (define/rec interleave-helper
   (lambda (x list n)
-    (if (zero? n) (cons (insertat x list 0) null) (cons (insertat x list n) (interleave-helper x list (- n 1))))))
+    (if (= n (list-len list)) (cons (insertat x list n) list) (cons (insertat x list n) (interleave-helper x list (+ n 1))))))
 
 (define/rec interleave
   (lambda (x list)
-    (interleave-helper x list (list-len list))))
+    (interleave-helper x list 0)))
 
 ;; tests
 (test (->listof ->nat (map add1 null)) => '())
