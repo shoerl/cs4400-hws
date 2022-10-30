@@ -376,3 +376,8 @@
 ;(define johns-solution (car (von-koch johns-graph)))
 ;
 ;|#
+
+(define 80 (+ (+ (+ (+ 5 5) (+ 5 5)) (+ (+ 5 5) (+ 5 5)))
+                          (+ (+ (+ 5 5) (+ 5 5)) (+ (+ 5 5) (+ 5 5)))))
+(define hours-spent (+ (+ 80 80) (+ 80 80)))
+(test (->nat hours-spent) => '320)
