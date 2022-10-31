@@ -48,148 +48,148 @@
 (test (->bool (= 1 1)) => '#t)
 (test (->bool (= (* (* 2 3) 2) (* 3 4))) => '#t)
 
-;; ==================== List utilities ====================
-
-;; define this to test list functions
-(define l12  (cons 1 (cons 2 null)))
-(define l123 (cons 1 (cons 2 (cons 3 null))))
-
-;; ref : Nat (Listof A) -> A
-;; returns the nth item of the given list (note: this doesn't have to be
-;; a recursive function, but in a way that doesn't correspond to plain
-;; racket)
-(define/rec ref
-  (lambda (n list)
-    (if (zero? n) (car list) (ref (- n 1) (cdr list)))))
-
-;; tests
-(test (->nat (ref 0 l123)) => '1)
-(test (->nat (ref 1 l123)) => '2)
-(test (->nat (ref 2 l123)) => '3)
-
+;;; ==================== List utilities ====================
+;
+;;; define this to test list functions
+;(define l12  (cons 1 (cons 2 null)))
+;(define l123 (cons 1 (cons 2 (cons 3 null))))
+;
+;;; ref : Nat (Listof A) -> A
+;;; returns the nth item of the given list (note: this doesn't have to be
+;;; a recursive function, but in a way that doesn't correspond to plain
+;;; racket)
+;(define/rec ref
+;  (lambda (n list)
+;    (if (zero? n) (car list) (ref (- n 1) (cdr list)))))
+;
+;;; tests
+;(test (->nat (ref 0 l123)) => '1)
+;(test (->nat (ref 1 l123)) => '2)
+;(test (->nat (ref 2 l123)) => '3)
+;
 ;; map : (A -> B) (Listof A) -> (Listof B)
 ;; maps the given function on the list, return a list of the results
 (define/rec map
   (lambda (f list)
     (if (null? list) list (cons (f (car list)) (map f (cdr list))))))
 
-;; tests
+;;; tests
 (test (->listof ->nat (map add1 null)) => '())
 (test (->listof ->nat (map add1 l123)) => '(2 3 4))
-
-;; append : (Listof A) (Listof A) -> (Listof A)
-;; appends the two input lists
-(define/rec append
-  (lambda (l1 l2)
-    (if (null? l1)
-        (if (null? l2)
-            l2
-            (cons (car l2) (append l1 (cdr l2))))
-        (cons (car l1) (append (cdr l1) l2)))))
-
-;; tests
-(test (->listof ->nat (append null null)) => '())
-(test (->listof ->nat (append null l123)) => '(1 2 3))
-(test (->listof ->nat (append l123 null)) => '(1 2 3))
-(test (->listof ->nat (append l12  l123)) => '(1 2 1 2 3))
-
-;; append* : (Listof (Listof A)) -> (Listof A)
-;; consumes a list of lists, and appends them all to a single list
-(define/rec append*
-  (lambda (lists)
-    (if (null? lists)
-        lists
-        (if (null? (car lists))
-            (append* (cdr lists))
-            (cons (car (car lists))
-                  (append* (cons (cdr (car lists))
-                                 (cdr lists))))))))
-    
-;; tests
-(test (->listof ->nat (append* null)) => '())
-(test (->listof ->nat (append* (cons null null))) => '())
-(test (->listof ->nat (append* (cons l123
-                                     (cons null
-                                           (cons l12
-                                                 (cons l123 null))))))
-      => '(1 2 3 1 2 1 2 3))
-
-;; Note: the following definitions can be hard to fill-in, it will be
-;; much easier if you do this first in the course language -- see the
-;; template file that is included with the homework.
-
-
-(define/rec list-len
-  (lambda (list)
-    (if (null? list) 0 (+ 1 (list-len (cdr list))))))
-
-(define/rec insertat
-  (lambda (x list n)
-    (if (zero? n) (cons x list) (cons (car list) (insertat x (cdr list) (- n 1))))))
-
-;; interleave : A (Listof A) -> (Listof (Listof A))
-;; consumes an item and a list, and returns a list of lists where the
-;; item is inserted at all possible places in the original list.
+;
+;;; append : (Listof A) (Listof A) -> (Listof A)
+;;; appends the two input lists
+;(define/rec append
+;  (lambda (l1 l2)
+;    (if (null? l1)
+;        (if (null? l2)
+;            l2
+;            (cons (car l2) (append l1 (cdr l2))))
+;        (cons (car l1) (append (cdr l1) l2)))))
+;
+;;; tests
+;(test (->listof ->nat (append null null)) => '())
+;(test (->listof ->nat (append null l123)) => '(1 2 3))
+;(test (->listof ->nat (append l123 null)) => '(1 2 3))
+;(test (->listof ->nat (append l12  l123)) => '(1 2 1 2 3))
+;
+;;; append* : (Listof (Listof A)) -> (Listof A)
+;;; consumes a list of lists, and appends them all to a single list
+;(define/rec append*
+;  (lambda (lists)
+;    (if (null? lists)
+;        lists
+;        (if (null? (car lists))
+;            (append* (cdr lists))
+;            (cons (car (car lists))
+;                  (append* (cons (cdr (car lists))
+;                                 (cdr lists))))))))
+;    
+;;; tests
+;(test (->listof ->nat (append* null)) => '())
+;(test (->listof ->nat (append* (cons null null))) => '())
+;(test (->listof ->nat (append* (cons l123
+;                                     (cons null
+;                                           (cons l12
+;                                                 (cons l123 null))))))
+;      => '(1 2 3 1 2 1 2 3))
+;
+;;; Note: the following definitions can be hard to fill-in, it will be
+;;; much easier if you do this first in the course language -- see the
+;;; template file that is included with the homework.
+;
+;
+;(define/rec list-len
+;  (lambda (list)
+;    (if (null? list) 0 (+ 1 (list-len (cdr list))))))
+;
+;(define/rec insertat
+;  (lambda (x list n)
+;    (if (zero? n) (cons x list) (cons (car list) (insertat x (cdr list) (- n 1))))))
+;
+;;; interleave : A (Listof A) -> (Listof (Listof A))
+;;; consumes an item and a list, and returns a list of lists where the
+;;; item is inserted at all possible places in the original list.
+;;(define/rec interleave-helper
+;;  (lambda (x lis n)
+;;    (if (zero? (list-len lis))
+;;        (cons (insertat x lis n) null)
+;;        (if (zero? (diff (+ 1 n) (list-len lis)))
+;;            (insertat x lis n)
+;;            (cons (insertat x lis n) (interleave-helper x lis (+ n 1)))))))
+;
+;
+;
 ;(define/rec interleave-helper
 ;  (lambda (x lis n)
-;    (if (zero? (list-len lis))
-;        (cons (insertat x lis n) null)
-;        (if (zero? (diff (+ 1 n) (list-len lis)))
-;            (insertat x lis n)
-;            (cons (insertat x lis n) (interleave-helper x lis (+ n 1)))))))
-
-
-
-(define/rec interleave-helper
-  (lambda (x lis n)
-    (if (zero? (diff n (list-len lis)))
-            (cons (insertat x lis n) null)
-            (cons (insertat x lis n) (interleave-helper x lis (+ n 1))))))
-
-(define/rec interleave
-  (lambda (x list)
-    (interleave-helper x list 0)))
-
-;; tests
-(test (->listof ->nat (map add1 null)) => '())
-
-(test (->listof ->nat (insertat 0 l123 0)) => '(0 1 2 3))
-(test (->listof ->nat (insertat 0 l123 1)) => '(1 0 2 3))
-(test (->listof ->nat (insertat 0 l123 2)) => '(1 2 0 3))
-(test (->listof ->nat (insertat 0 l123 3)) => '(1 2 3 0))
-
-(test (->listof (->listof ->nat) (interleave 0 l123))
-      => '((0 1 2 3) (1 0 2 3) (1 2 0 3) (1 2 3 0)))
-
-(test (->listof (->listof ->nat) (interleave 0 null)) => '((0)))
-
-(test (->nat (list-len null)) => '0)
-(test (->nat (list-len (cons 3 (cons 2 null)))) => '2)
-
-(test (->bool (zero? (diff (+ 1 0) (list-len (cons 3 null))))) => '#t)
-
-(test (->listof (->listof ->nat) (interleave 0 (cons 3 null))) => '((0 3) (3 0)))
-
-
-;; permutations : (Listof A) -> (Listof (Listof A))
-;; returns a list of all possible permutations of the input list
-
-(define/rec permutations
-  (lambda (list)
-    (if (null? list)
-        (cons null null)
-        
-    (permutations-help list 0 null)))
-
-
-
-;; tests
-
-
-(test (->listof (->listof ->nat) (append-no-d (cons (cons 1 (cons 2 null)) null) (cons (cons 2 (cons 1 null)) null))) => '((2))) 
-
-(test (->listof (->listof ->nat) (permutations l123))
-      => '((1 2 3) (2 1 3) (2 3 1) (1 3 2) (3 1 2) (3 2 1)))
+;    (if (zero? (diff n (list-len lis)))
+;            (cons (insertat x lis n) null)
+;            (cons (insertat x lis n) (interleave-helper x lis (+ n 1))))))
+;
+;(define/rec interleave
+;  (lambda (x list)
+;    (interleave-helper x list 0)))
+;
+;;; tests
+;(test (->listof ->nat (map add1 null)) => '())
+;
+;(test (->listof ->nat (insertat 0 l123 0)) => '(0 1 2 3))
+;(test (->listof ->nat (insertat 0 l123 1)) => '(1 0 2 3))
+;(test (->listof ->nat (insertat 0 l123 2)) => '(1 2 0 3))
+;(test (->listof ->nat (insertat 0 l123 3)) => '(1 2 3 0))
+;
+;(test (->listof (->listof ->nat) (interleave 0 l123))
+;      => '((0 1 2 3) (1 0 2 3) (1 2 0 3) (1 2 3 0)))
+;
+;(test (->listof (->listof ->nat) (interleave 0 null)) => '((0)))
+;
+;(test (->nat (list-len null)) => '0)
+;(test (->nat (list-len (cons 3 (cons 2 null)))) => '2)
+;
+;(test (->bool (zero? (diff (+ 1 0) (list-len (cons 3 null))))) => '#t)
+;
+;(test (->listof (->listof ->nat) (interleave 0 (cons 3 null))) => '((0 3) (3 0)))
+;
+;
+;;; permutations : (Listof A) -> (Listof (Listof A))
+;;; returns a list of all possible permutations of the input list
+;
+;(define/rec permutations
+;  (lambda (list)
+;    (if (null? list)
+;        (cons null null)
+;        
+;    (permutations-help list 0 null)))
+;
+;
+;
+;;; tests
+;
+;
+;(test (->listof (->listof ->nat) (append-no-d (cons (cons 1 (cons 2 null)) null) (cons (cons 2 (cons 1 null)) null))) => '((2))) 
+;
+;(test (->listof (->listof ->nat) (permutations l123))
+;      => '((1 2 3) (2 1 3) (2 3 1) (1 3 2) (3 1 2) (3 2 1)))
 
 ;(test (->listof (->listof ->nat) (permutations null))
 ;      => '(()))
@@ -207,52 +207,69 @@
 ;(test (->listof (->listof ->nat) (permutations l123))
 ;      => '((1 2 3) (2 1 3) (2 3 1) (1 3 2) (3 1 2) (3 2 1)))
 
-;;; filter : (A -> Bool) (Listof A) -> (Listof A)
-;;; given a predicate and a list, return a list of the items that
-;;; satisfy the predicate
-;(define/rec filter
-;  ???)
-;;; tests
-;(test (->listof ->nat (filter (lambda (n) #t) l123))
-;      => '(1 2 3))
-;(test (->listof ->nat (filter (lambda (n) #f) l123))
-;      => '())
-;(test (->listof ->nat (filter (lambda (n) (zero? (- n 2))) l123))
-;      => '(1 2))
-;
+;; filter : (A -> Bool) (Listof A) -> (Listof A)
+;; given a predicate and a list, return a list of the items that
+;; satisfy the predicate
+(define/rec filter
+  (lambda (f list)
+    (if (null? list) list
+        (if (f (car list))
+            (cons (car list) (filter f (cdr list)))
+            (filter f (cdr list))))))
+
+;; tests
+(test (->listof ->nat (filter (lambda (n) #t) l123))
+      => '(1 2 3))
+(test (->listof ->nat (filter (lambda (n) #f) l123))
+      => '())
+(test (->listof ->nat (filter (lambda (n) (zero? (- n 2))) l123))
+      => '(1 2))
+
 ;;; member? : Nat (Listof Nat) -> Bool
 ;;; determines whether the given number is included in the given list
 ;;; (note: unlike Racket's `member', this is limited to numbers, and
 ;;; returns a boolean)
-;???
+
+(define/rec member?
+  (lambda (n list)
+    (if (null? list) #f
+        (if (= n (car list)) #t
+            (member? n (cdr list)))))) 
+
 ;;; tests
-;(test (->bool (member? 2 l123)) => '#t)
-;(test (->bool (member? 4 l123)) => '#f)
-;
+(test (->bool (member? 2 l123)) => '#t)
+(test (->bool (member? 4 l123)) => '#f)
+(test (->bool (member? 4 null)) => '#f)
+
 ;;; unique? : (Listof Nat) -> Bool
 ;;; determines if the given list of numbers is unique
-;(define/rec unique?
-;  (lambda (list)
-;    (or ???
-;        (and ???))))
+(define/rec unique?
+  (lambda (list)
+    (or (null? list)
+        (and (not (member? (car list) (cdr list)))
+             (unique? (cdr list))))))
+
 ;;; tests
-;(test (->bool (unique? l123)) => '#t)
-;(test (->bool (unique? (cons 2 l123))) => '#f)
+(test (->bool (unique? l123)) => '#t)
+(test (->bool (unique? (cons 2 l123))) => '#f)
 ;
-;;; from-to : Nat Nat -> (Listof Nat)
-;;; returns a list of numbers from lo (inclusive) to hi (exclusive)
-;???
+;; from-to : Nat Nat -> (Listof Nat)
+;; returns a list of numbers from lo (inclusive) to hi (exclusive)
+(define/rec from-to
+  (lambda (lo hi)
+    (if (= lo hi) null (cons lo (from-to (add1 lo) hi)))))
 ;;; tests
-;(test (->listof ->nat (from-to 2 2)) => '())
-;(test (->listof ->nat (from-to 2 5)) => '(2 3 4))
+(test (->listof ->nat (from-to 2 2)) => '())
+(test (->listof ->nat (from-to 2 5)) => '(2 3 4))
 ;
 ;;; range : Nat -> (Listof Nat)
 ;;; returns a list of numbers from 0 (inclusive) to N (exclusive)
-;???
+(define/rec range
+  (lambda (hi) (from-to 0 hi)))
 ;;; tests
-;(test (->listof ->nat (range 0)) => '())
-;(test (->listof ->nat (range 1)) => '(0))
-;(test (->listof ->nat (range 5)) => '(0 1 2 3 4))
+(test (->listof ->nat (range 0)) => '())
+(test (->listof ->nat (range 1)) => '(0))
+(test (->listof ->nat (range 5)) => '(0 1 2 3 4))
 ;
 ;;; ==================== Main code ====================
 ;
