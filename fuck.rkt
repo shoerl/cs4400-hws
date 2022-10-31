@@ -43,14 +43,21 @@
 ;        (cons null null)
 ;        
 ;    (permutations-help list 0 null)))
-  
+(: do-stuff : (All (A) A (Listof (Listof A)) -> (Listof (Listof A))))
+(define do-stuff
+  (lambda (item list)
+    (if (null? list) list
+    (append ((interleave item) (first list)) (do-stuff item (rest list))))))
+
 (: permutations : (All (A) (Listof A) -> (Listof (Listof A))))
 ;; returns a list of all possible permutations of the input list
 (define permutations
   (lambda (list)
     (if (null? list)
         (cons null null)
-        (cons (append* ((interleave (first list)) (rest list))) (permutations (rest list))))))
+         (do-stuff (first list) (permutations (rest list))))))
+;        (append* (map (lambda (x) ((interleave (first list)) x) (permutations (rest list))))))))
+        ;((interleave (first list)) ((permutations (rest list)))))))
     
     ;; hint: use `append*', `interleave', and recursive calls to
     ;; `permutations' here
