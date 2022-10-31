@@ -214,8 +214,8 @@
   (lambda (f list)
     (if (null? list) list
         (with [next  (filter f (cdr list))]
-              (if (f first)
-                  (cons first next)
+              (if (f (car list))
+                  (cons (car list) next)
                   next)))))
 
 ;; tests
