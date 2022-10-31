@@ -275,13 +275,21 @@
 ;;; representation in the same form, and a labeling assignment as a
 ;;; list of numbers, and determines whether the assignment represents a
 ;;; graceful labeling.
-;(define graceful?
-;  (lambda (edges assignment)
-;    (unique? (map (lambda (edge)
-;                    ;; use `ref' with the car and cdr of the edge
-;                    ???)
-;                  edges))))
-;
+(define graceful?
+  (lambda (edges assignment)
+    (unique? (map (lambda (edge)
+                    (diff (ref (car edge) assignment)
+                          (ref (car (cdr edge)) assignment)))
+                  edges))))
+
+; can't test this properly to save my life...
+(define map-test
+  (lambda (edges assignment)
+    (map (lambda (edge)
+                    (diff (ref (car edge) assignment)
+                          (ref (car (cdr edge)) assignment)))
+                  edges)))
+
 ;;; von-koch : (Listof (Pair Nat Nat)) -> (Listof (Listof Nat))
 ;;; The main function consumes a tree graph represented as a list of
 ;;; cons pairs, each one represents an edge, and returns a list of
@@ -300,7 +308,7 @@
 ;;; ==================== Main test ====================
 ;
 ;;; we'll need a 6
-;(define 6 (add1 5))
+(define 6 (add1 5))
 ;
 ;;; This is a useful utility to construct a long list without the
 ;;; hassle of nested `cons' calls.  The idea is to make a `list'-like
@@ -310,18 +318,18 @@
 ;;; type for this function -- since its type will be weird.  (You're
 ;;; not required to do anything with this function, but just
 ;;; understanding how it works can be enlightening.)
-;(define/rec pair-list*
-;  (lambda (k x)
-;    (if (null? x)
-;      (k null)
-;      (pair-list* (lambda (r) (k (cons x r)))))))
-;(define pair-list (pair-list* identity))
-;;; test the testing utility...
-;(test (->listof ->nat
-;       (with [xs (pair-list (cons 1 2) (cons 3 4) (cons 5 6) null)]
-;         (append (map car xs) (map cdr xs))))
-;      => '(1 3 5 2 4 6))
-;
+(define/rec pair-list*
+  (lambda (k x)
+    (if (null? x)
+      (k null)
+      (pair-list* (lambda (r) (k (cons x r)))))))
+(define pair-list (pair-list* identity))
+;; test the testing utility...
+(test (->listof ->nat
+       (with [xs (pair-list (cons 1 2) (cons 3 4) (cons 5 6) null)]
+         (append (map car xs) (map cdr xs))))
+      => '(1 3 5 2 4 6))
+
 ;;; This is an encoding of the simple graph from the homework:
 ;;;
 ;;;    0   5---3
@@ -334,14 +342,16 @@
 ;;;    |
 ;;;    1
 ;;;
-;(define simple-graph
-;  (pair-list (cons 0 6)
-;             (cons 6 1)
-;             (cons 6 4)
-;             (cons 4 5)
-;             (cons 5 3)
-;             (cons 4 2)
-;             null))
+(define simple-graph
+  (pair-list (cons 0 6)
+             (cons 6 1)
+             (cons 6 4)
+             (cons 4 5)
+             (cons 5 3)
+             (cons 4 2)
+             null))
+
+(test (->listof ->nat (map-test simple-graph (cons 3 (cons 4 (cons 5 (cons 2 (cons 0 (cons 6 (cons 1 null))))))))) => '(2 3 1 6 4 5))
 ;
 ;;; Here we compute and test the node labeling (note that like the test
 ;;; for `permutations', this test is not a good one!)
