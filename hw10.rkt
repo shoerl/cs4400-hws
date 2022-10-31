@@ -279,7 +279,7 @@
   (lambda (edges assignment)
     (unique? (map (lambda (edge)
                     (diff (ref (car edge) assignment)
-                          (ref (car (cdr edge)) assignment)))
+                          (ref (cdr edge) assignment)))
                   edges))))
 
 ; can't test this properly to save my life...
@@ -287,7 +287,7 @@
   (lambda (edges assignment)
     (map (lambda (edge)
                     (diff (ref (car edge) assignment)
-                          (ref (car (cdr edge)) assignment)))
+                          (ref (cdr edge) assignment)))
                   edges)))
 
 ;;; von-koch : (Listof (Pair Nat Nat)) -> (Listof (Listof Nat))
@@ -351,7 +351,17 @@
              (cons 4 2)
              null))
 
-(test (->listof ->nat (map-test simple-graph (cons 3 (cons 4 (cons 5 (cons 2 (cons 0 (cons 6 (cons 1 null))))))))) => '(2 3 1 6 4 5))
+(define assign-t
+  (cons 3 (cons 4 (cons 5 (cons 2 (cons 0 (cons 6 (cons 1 null))))))))
+
+(define assign-def
+  (cons 0 (cons 1 (cons 2 (cons 3 (cons 4 (cons 5 (cons 6 null))))))))
+
+(test (->listof ->nat assign-t) => '(3 4 5 2 0 6 1))
+(test (->listof ->nat (map-test simple-graph assign-t)) => '(2 3 1 6 4 5))
+(test (->bool (graceful? simple-graph assign-t)) => '#t)
+(test (->bool (graceful? simple-graph assign-def)) => '#f)
+
 ;
 ;;; Here we compute and test the node labeling (note that like the test
 ;;; for `permutations', this test is not a good one!)
@@ -369,6 +379,7 @@
 ;;;    |
 ;;;    4
 ;;;
+;;;---------------------------------------------------------
 ;;; Another simple graph for test purposes:
 ;;;
 ;;;    1---3---5
@@ -395,6 +406,32 @@
 ;;;        |  
 ;;;    4---1---2
 ;;;      3   1
+;;;
+;;;---------------------------------------------------------
+;;; Another super simple graph for test purposes:
+;;;
+;;;    3---1
+;;;    |      
+;;;    |      
+;;;    |     
+;;;    0---2
+;;;
+;(define simple-graph-3
+;  (pair-list (cons 3 1)
+;             (cons 3 0)
+;             (cons 0 2)
+;             null))
+;
+;(define simple-solution-2 (car (von-koch simple-graph-3)))
+;(test (->listof ->nat simple-solution-2) => '(3 2 0 1))
+;;; The corresponding graph for the solution:
+;;;
+;;;    1---2
+;;;    | 1    
+;;;   2|      
+;;;    |     
+;;;    3---0
+;;;      3
 ;;;
 ;#| Finally, this is John's graph.
 ;   Warning: this can take a long time to run -- it is here only if you
