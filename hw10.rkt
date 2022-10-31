@@ -53,6 +53,7 @@
 ;; define this to test list functions
 (define l12  (cons 1 (cons 2 null)))
 (define l123 (cons 1 (cons 2 (cons 3 null))))
+(define l000 (cons 0 (cons 0 (cons 0 null))))
 
 ;; ref : Nat (Listof A) -> A
 ;; returns the nth item of the given list (note: this doesn't have to be
@@ -81,11 +82,11 @@
 ;; appends the two input lists
 (define/rec append
   (lambda (l1 l2)
-    (if (null? l1)
-        (if (null? l2)
-            l2
-            (cons (car l2) (append l1 (cdr l2))))
-        (cons (car l1) (append (cdr l1) l2)))))
+    (if (not (null? l1))
+        (cons (car l1) (append (cdr l1) l2))
+        (if (not (null? l2))
+            (cons (car l2) (append l1 (cdr l2)))
+            l2))))
 
 ;; tests
 (test (->listof ->nat (append null null)) => '())
@@ -99,11 +100,12 @@
   (lambda (lists)
     (if (null? lists)
         lists
-        (if (null? (car lists))
-            (append* (cdr lists))
-            (cons (car (car lists))
-                  (append* (cons (cdr (car lists))
-                                 (cdr lists))))))))
+        (with [first (car lists)]
+              (with [rest (cdr lists)]
+                    (if (null? first)
+                        (append* rest)
+                        (cons (car first)
+                              (append* (cons (cdr first) rest)))))))))
     
 ;; tests
 (test (->listof ->nat (append* null)) => '())
@@ -125,7 +127,8 @@
 
 (define/rec insertat
   (lambda (x list n)
-    (if (zero? n) (cons x list) (cons (car list) (insertat x (cdr list) (- n 1))))))
+    (if (zero? n) (cons x list)
+        (cons (car list) (insertat x (cdr list) (- n 1))))))
 
 ;; interleave : A (Listof A) -> (Listof (Listof A))
 ;; consumes an item and a list, and returns a list of lists where the
@@ -142,9 +145,10 @@
 
 (define/rec interleave-helper
   (lambda (x lis n)
-    (if (zero? (diff n (list-len lis)))
-            (cons (insertat x lis n) null)
-            (cons (insertat x lis n) (interleave-helper x lis (+ n 1))))))
+    (with [insert (insertat x lis n)]
+          (if (zero? (diff n (list-len lis)))
+              (cons insert null)
+              (cons insert (interleave-helper x lis (+ n 1)))))))
 
 (define/rec interleave
   (lambda (x list)
@@ -168,7 +172,8 @@
 
 (test (->bool (zero? (diff (+ 1 0) (list-len (cons 3 null))))) => '#t)
 
-(test (->listof (->listof ->nat) (interleave 0 (cons 3 null))) => '((0 3) (3 0)))
+(test (->listof (->listof ->nat) (interleave 0 (cons 3 null)))
+      => '((0 3) (3 0)))
 
 
 ;; permutations : (Listof A) -> (Listof (Listof A))
@@ -177,16 +182,19 @@
   (lambda (list)
     (if (null? list)
         (cons null null)
-        (append* (map (lambda (y) ((interleave (car list)) y)) (permutations (cdr list)))))))
+        (append* (map (lambda (y) ((interleave (car list)) y))
+                      (permutations (cdr list)))))))
         
-
-
 
 ;; tests
 
 
 (test (->listof (->listof ->nat) (permutations l123))
       => '((1 2 3) (2 1 3) (2 3 1) (1 3 2) (3 1 2) (3 2 1)))
+
+;; tests that duplicate values still result in 2^n permutations.
+(test (->listof (->listof ->nat) (permutations l000))
+      => '((0 0 0) (0 0 0) (0 0 0) (0 0 0) (0 0 0) (0 0 0)))
 
 (test (->listof (->listof ->nat) (permutations null))
       => '(()))
@@ -210,9 +218,11 @@
 (define/rec filter
   (lambda (f list)
     (if (null? list) list
-        (if (f (car list))
-            (cons (car list) (filter f (cdr list)))
-            (filter f (cdr list))))))
+        (with [first (car list)]
+              (with [next  (filter f (cdr list))]
+              (if (f first)
+                  (cons first next)
+                  next))))))
 
 ;; tests
 (test (->listof ->nat (filter (lambda (n) #t) l123))
@@ -243,8 +253,9 @@
 (define/rec unique?
   (lambda (list)
     (or (null? list)
-        (and (not (member? (car list) (cdr list)))
-             (unique? (cdr list))))))
+        (with [rest (cdr list)]
+              (and (not (member? (car list) rest))
+                   (unique? rest))))))
 
 ;;; tests
 (test (->bool (unique? l123)) => '#t)
@@ -281,15 +292,6 @@
                     (diff (ref (car edge) assignment)
                           (ref (cdr edge) assignment)))
                   edges))))
-
-; can't test this properly to save my life...
-(define map-test
-  (lambda (edges assignment)
-    (map (lambda (edge)
-                    (diff (ref (car edge) assignment)
-                          (ref (cdr edge) assignment)))
-                  edges)))
-
 
 (define get-assignments
   (lambda (edges assignments)
@@ -367,11 +369,9 @@
 (define assign-def
   (cons 0 (cons 1 (cons 2 (cons 3 (cons 4 (cons 5 (cons 6 null))))))))
 
-(test (->listof ->nat assign-t) => '(3 4 5 2 0 6 1))
-(test (->listof ->nat (map-test simple-graph assign-t)) => '(2 3 1 6 4 5))
+;; testing graceful? function
 (test (->bool (graceful? simple-graph assign-t)) => '#t)
 (test (->bool (graceful? simple-graph assign-def)) => '#f)
-
 
 ; Here we compute and test the node labeling (note that like the test
 ;; for `permutations', this test is not a good one!)
@@ -408,18 +408,17 @@
 
 (define simple-solution-2 (car (von-koch simple-graph-2)))
 (test (->listof ->nat simple-solution-2) => '(2 3 0 4 5 1))
-;(test (->listof ->nat simple-solution-2) => '(4 0 1 5 2 3))
 ;; The corresponding graph for the solution:
 ;;
-;;    0---5---3
-;;      5 | 2 
+;;    3---4---1
+;;      1 | 3 
 ;;       4|   
 ;;        |  
-;;    4---1---2
-;;      3   1
+;;    2---0---5
+;;      2   5
 ;;
 ;;---------------------------------------------------------
-;; Another super simple graph for test purposes:
+;; Another very simple graph for test purposes:
 ;;
 ;;    3---1
 ;;    |      
@@ -435,15 +434,14 @@
 
 (define simple-solution-3 (car (von-koch simple-graph-3)))
 (test (->listof ->nat simple-solution-3) => '(1 0 2 3))
-;(test (->listof ->nat simple-solution-3) => '(3 2 0 1))
 ;; The corresponding graph for the solution:
 ;;
-;;    1---2
-;;    | 1    
+;;    3---0
+;;    | 3    
 ;;   2|      
 ;;    |     
-;;    3---0
-;;      3
+;;    1---2
+;;      1
 ;;
 #| Finally, this is John's graph.
    Warning: this can take a long time to run -- it is here only if you
@@ -477,7 +475,5 @@
 
 |#
 
-(define 80 (+ (+ (+ (+ 5 5) (+ 5 5)) (+ (+ 5 5) (+ 5 5)))
-                          (+ (+ (+ 5 5) (+ 5 5)) (+ (+ 5 5) (+ 5 5)))))
-(define hours-spent (+ (+ 80 80) (+ 80 80)))
-(test (->nat hours-spent) => '320)
+(define hours-spent (+ 3 5))
+(test (->nat hours-spent) => '8)
