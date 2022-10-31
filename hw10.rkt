@@ -84,9 +84,7 @@
   (lambda (l1 l2)
     (if (not (null? l1))
         (cons (car l1) (append (cdr l1) l2))
-        (if (not (null? l2))
-            (cons (car l2) (append l1 (cdr l2)))
-            l2))))
+        l2)))
 
 ;; tests
 (test (->listof ->nat (append null null)) => '())
@@ -100,12 +98,11 @@
   (lambda (lists)
     (if (null? lists)
         lists
-        (with [first (car lists)]
-              (with [rest (cdr lists)]
-                    (if (null? first)
-                        (append* rest)
-                        (cons (car first)
-                              (append* (cons (cdr first) rest)))))))))
+        (with [rest (cdr lists)]
+              (if (null? (car lists))
+                  (append* rest)
+                  (cons (car (car lists))
+                        (append* (cons (cdr (car lists)) rest))))))))
     
 ;; tests
 (test (->listof ->nat (append* null)) => '())
@@ -126,6 +123,8 @@
 ;; interleave : A (Listof A) -> (Listof (Listof A))
 ;; consumes an item and a list, and returns a list of lists where the
 ;; item is inserted at all possible places in the original list.
+
+
 (define/rec interleave
   (lambda (x list)
     (if (null? list)
@@ -164,7 +163,7 @@
   (lambda (list)
     (if (null? list)
         (cons null null)
-        (append* (map (lambda (y) ((interleave (car list)) y))
+        (append* (map (interleave (car list))
                       (permutations (cdr list)))))))
         
 
@@ -200,11 +199,10 @@
 (define/rec filter
   (lambda (f list)
     (if (null? list) list
-        (with [first (car list)]
-              (with [next  (filter f (cdr list))]
-              (if (f first)
-                  (cons first next)
-                  next))))))
+        (with [next  (filter f (cdr list))]
+              (if (f (car list))
+                  (cons (car list) next)
+                  next)))))
 
 ;; tests
 (test (->listof ->nat (filter (lambda (n) #t) l123))
