@@ -290,58 +290,68 @@
                           (ref (cdr edge) assignment)))
                   edges)))
 
-;;; von-koch : (Listof (Pair Nat Nat)) -> (Listof (Listof Nat))
-;;; The main function consumes a tree graph represented as a list of
-;;; cons pairs, each one represents an edge, and returns a list of
-;;; solutions, each is a list that maps node labels in the input to
-;;; node label in a gracful labeling.  See the homework text for more
-;;; details.  Note that this function does not check its input; for
-;;; example, it assumes that if there are N edges, then the labels are
-;;; from 0 to N (inclusive).  (This should be obvious, given that we
-;;; have no way of throwing an error.)
-;(define von-koch
-;  (lambda (edges)
-;    (with [n (add1 (length edges))]
-;      (with [assignments (permutations (range n))]
-;        ???))))
-;
-;;; ==================== Main test ====================
-;
-;;; we'll need a 6
+
+(define get-assignments
+  (lambda (edges assignments)
+    (filter (lambda (assignment) (graceful? edges assignment)) assignments)))
+;    (if (null? assignments) null
+;        (if (graceful? edges (car assignments))
+;            (cons (car assignments) (get-assignments edges (cdr assignments)))
+;            (get-assignments edges (cdr assignments))))))
+
+;; von-koch : (Listof (Pair Nat Nat)) -> (Listof (Listof Nat))
+;; The main function consumes a tree graph represented as a list of
+;; cons pairs, each one represents an edge, and returns a list of
+;; solutions, each is a list that maps node labels in the input to
+;; node label in a gracful labeling.  See the homework text for more
+;; details.  Note that this function does not check its input; for
+;; example, it assumes that if there are N edges, then the labels are
+;; from 0 to N (inclusive).  (This should be obvious, given that we
+;; have no way of throwing an error.)
+(define von-koch
+  (lambda (edges)
+    (with [n (add1 (length edges))]
+      (with [assignments (permutations (range n))]
+            (get-assignments edges assignments)))))
+
+
+;; ==================== Main test ====================
+
+;; we'll need a 6
 (define 6 (add1 5))
-;
-;;; This is a useful utility to construct a long list without the
-;;; hassle of nested `cons' calls.  The idea is to make a `list'-like
-;;; function of a variable number of arguments.  It is limited to pairs
-;;; only, since it uses `null' to mark the end of the arguments (it
-;;; needs to be able to identify an end value).  Note that there is no
-;;; type for this function -- since its type will be weird.  (You're
-;;; not required to do anything with this function, but just
-;;; understanding how it works can be enlightening.)
+
+;; This is a useful utility to construct a long list without the
+;; hassle of nested `cons' calls.  The idea is to make a `list'-like
+;; function of a variable number of arguments.  It is limited to pairs
+;; only, since it uses `null' to mark the end of the arguments (it
+;; needs to be able to identify an end value).  Note that there is no
+;; type for this function -- since its type will be weird.  (You're
+;; not required to do anything with this function, but just
+;; understanding how it works can be enlightening.)
 (define/rec pair-list*
   (lambda (k x)
     (if (null? x)
       (k null)
       (pair-list* (lambda (r) (k (cons x r)))))))
 (define pair-list (pair-list* identity))
-;; test the testing utility...
+; test the testing utility...
 (test (->listof ->nat
        (with [xs (pair-list (cons 1 2) (cons 3 4) (cons 5 6) null)]
          (append (map car xs) (map cdr xs))))
       => '(1 3 5 2 4 6))
 
-;;; This is an encoding of the simple graph from the homework:
-;;;
-;;;    0   5---3
-;;;    |   |
-;;;    |   |
-;;;    |   |
-;;;    6---4---2
-;;;    |
-;;;    |
-;;;    |
-;;;    1
-;;;
+; This is an encoding of the simple graph from the homework:
+;;
+;;    0   5---3
+;;    |   |
+;;    |   |
+;;    |   |
+;;    6---4---2
+;;    |
+;;    |
+;;    |
+;;    1
+;;
 (define simple-graph
   (pair-list (cons 0 6)
              (cons 6 1)
@@ -362,110 +372,112 @@
 (test (->bool (graceful? simple-graph assign-t)) => '#t)
 (test (->bool (graceful? simple-graph assign-def)) => '#f)
 
-;
-;;; Here we compute and test the node labeling (note that like the test
-;;; for `permutations', this test is not a good one!)
-;(define simple-solution (car (von-koch simple-graph)))
-;(test (->listof ->nat simple-solution) => '(3 4 5 2 0 6 1))
-;;; This labeling corresponds to this graph, shown with the differences
-;;;
-;;;    3   6---2
-;;;    |   | 4
-;;;   2|  6|
-;;;    |   |
-;;;    1---0---5
-;;;    | 1   5
-;;;   3|
-;;;    |
-;;;    4
-;;;
-;;;---------------------------------------------------------
-;;; Another simple graph for test purposes:
-;;;
-;;;    1---3---5
-;;;        |   
-;;;        |   
-;;;        |  
-;;;    0---2---4
-;;;
-;(define simple-graph-2
-;  (pair-list (cons 1 3)
-;             (cons 3 5)
-;             (cons 3 2)
-;             (cons 0 2)
-;             (cons 2 4)
-;             null))
-;
-;(define simple-solution-2 (car (von-koch simple-graph-2)))
+
+; Here we compute and test the node labeling (note that like the test
+;; for `permutations', this test is not a good one!)
+(define simple-solution (car (von-koch simple-graph)))
+(test (->listof ->nat simple-solution) => '(3 4 5 2 0 6 1))
+;; This labeling corresponds to this graph, shown with the differences
+;;
+;;    3   6---2
+;;    |   | 4
+;;   2|  6|
+;;    |   |
+;;    1---0---5
+;;    | 1   5
+;;   3|
+;;    |
+;;    4
+;;
+;;---------------------------------------------------------
+;; Another simple graph for test purposes:
+;;
+;;    1---3---5
+;;        |   
+;;        |   
+;;        |  
+;;    0---2---4
+;;
+(define simple-graph-2
+  (pair-list (cons 1 3)
+             (cons 3 5)
+             (cons 3 2)
+             (cons 0 2)
+             (cons 2 4)
+             null))
+
+(define simple-solution-2 (car (von-koch simple-graph-2)))
+(test (->listof ->nat simple-solution-2) => '(2 3 0 4 5 1))
 ;(test (->listof ->nat simple-solution-2) => '(4 0 1 5 2 3))
-;;; The corresponding graph for the solution:
-;;;
-;;;    0---5---3
-;;;      5 | 2 
-;;;       4|   
-;;;        |  
-;;;    4---1---2
-;;;      3   1
-;;;
-;;;---------------------------------------------------------
-;;; Another super simple graph for test purposes:
-;;;
-;;;    3---1
-;;;    |      
-;;;    |      
-;;;    |     
-;;;    0---2
-;;;
-;(define simple-graph-3
-;  (pair-list (cons 3 1)
-;             (cons 3 0)
-;             (cons 0 2)
-;             null))
-;
-;(define simple-solution-2 (car (von-koch simple-graph-3)))
-;(test (->listof ->nat simple-solution-2) => '(3 2 0 1))
-;;; The corresponding graph for the solution:
-;;;
-;;;    1---2
-;;;    | 1    
-;;;   2|      
-;;;    |     
-;;;    3---0
-;;;      3
-;;;
-;#| Finally, this is John's graph.
-;   Warning: this can take a long time to run -- it is here only if you
-;   want to try it for yourself, do not submit with it.
-;
-;(define  7 (add1  6))
-;(define  8 (add1  7))
-;(define  9 (add1  8))
-;(define 10 (add1  9))
-;(define 11 (add1 10))
-;(define 12 (add1 11))
-;(define 13 (add1 12))
-;
-;(define johns-graph
-;  (pair-list (cons  0  3)
-;             (cons  1  3)
-;             (cons  2  3)
-;             (cons  3  4)
-;             (cons  3  6)
-;             (cons  5  6)
-;             (cons  6  7)
-;             (cons  6  9)
-;             (cons  8  9)
-;             (cons  9 10)
-;             (cons 10 11)
-;             (cons 10 13)
-;             (cons 12 13)
-;             null))
-;
-;(define johns-solution (car (von-koch johns-graph)))
-;
-;|#
-;
-;(define 80 (+ (+ (+ (+ 5 5) (+ 5 5)) (+ (+ 5 5) (+ 5 5)))
-;                          (+ (+ (+ 5 5) (+ 5 5)) (+ (+ 5 5) (+ 5 5)))))
-;(define hours-spent (+ (+ 80 80) (+ 80 80)))
-;(test (->nat hours-spent) => '320)
+;; The corresponding graph for the solution:
+;;
+;;    0---5---3
+;;      5 | 2 
+;;       4|   
+;;        |  
+;;    4---1---2
+;;      3   1
+;;
+;;---------------------------------------------------------
+;; Another super simple graph for test purposes:
+;;
+;;    3---1
+;;    |      
+;;    |      
+;;    |     
+;;    0---2
+;;
+(define simple-graph-3
+  (pair-list (cons 3 1)
+             (cons 3 0)
+             (cons 0 2)
+             null))
+
+(define simple-solution-3 (car (von-koch simple-graph-3)))
+(test (->listof ->nat simple-solution-3) => '(1 0 2 3))
+;(test (->listof ->nat simple-solution-3) => '(3 2 0 1))
+;; The corresponding graph for the solution:
+;;
+;;    1---2
+;;    | 1    
+;;   2|      
+;;    |     
+;;    3---0
+;;      3
+;;
+#| Finally, this is John's graph.
+   Warning: this can take a long time to run -- it is here only if you
+   want to try it for yourself, do not submit with it.
+
+(define  7 (add1  6))
+(define  8 (add1  7))
+(define  9 (add1  8))
+(define 10 (add1  9))
+(define 11 (add1 10))
+(define 12 (add1 11))
+(define 13 (add1 12))
+
+(define johns-graph
+  (pair-list (cons  0  3)
+             (cons  1  3)
+             (cons  2  3)
+             (cons  3  4)
+             (cons  3  6)
+             (cons  5  6)
+             (cons  6  7)
+             (cons  6  9)
+             (cons  8  9)
+             (cons  9 10)
+             (cons 10 11)
+             (cons 10 13)
+             (cons 12 13)
+             null))
+
+(define johns-solution (car (von-koch johns-graph)))
+
+|#
+
+(define 80 (+ (+ (+ (+ 5 5) (+ 5 5)) (+ (+ 5 5) (+ 5 5)))
+                          (+ (+ (+ 5 5) (+ 5 5)) (+ (+ 5 5) (+ 5 5)))))
+(define hours-spent (+ (+ 80 80) (+ 80 80)))
+(test (->nat hours-spent) => '320)
