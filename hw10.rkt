@@ -121,56 +121,38 @@
 ;; template file that is included with the homework.
 
 
-(define/rec list-len
-  (lambda (list)
-    (if (null? list) 0 (+ 1 (list-len (cdr list))))))
 
-(define/rec insertat
-  (lambda (x list n)
-    (if (zero? n) (cons x list)
-        (cons (car list) (insertat x (cdr list) (- n 1))))))
 
 ;; interleave : A (Listof A) -> (Listof (Listof A))
 ;; consumes an item and a list, and returns a list of lists where the
 ;; item is inserted at all possible places in the original list.
-;(define/rec interleave-helper
-;  (lambda (x lis n)
-;    (if (zero? (list-len lis))
-;        (cons (insertat x lis n) null)
-;        (if (zero? (diff (+ 1 n) (list-len lis)))
-;            (insertat x lis n)
-;            (cons (insertat x lis n) (interleave-helper x lis (+ n 1)))))))
-
-
-
-(define/rec interleave-helper
-  (lambda (x lis n)
-    (with [insert (insertat x lis n)]
-          (if (zero? (diff n (list-len lis)))
-              (cons insert null)
-              (cons insert (interleave-helper x lis (+ n 1)))))))
-
 (define/rec interleave
   (lambda (x list)
-    (interleave-helper x list 0)))
+    (if (null? list)
+        (cons (cons x null) null)
+ ;       (if (null? (cdr list))
+  ;          (cons (append (cons x null) list) (cons (append list (cons x null)) null))
+            (with [next (interleave x (cdr list))]
+                  (if (null? (car next))
+                      (cons (append (cons x null) list) null)
+                      (cons (append (cons x null) list) (map (lambda (x) (append (cons (car list) null) x)) next)))))))
+
+                       
 
 ;; tests
 (test (->listof ->nat (map add1 null)) => '())
 
-(test (->listof ->nat (insertat 0 l123 0)) => '(0 1 2 3))
-(test (->listof ->nat (insertat 0 l123 1)) => '(1 0 2 3))
-(test (->listof ->nat (insertat 0 l123 2)) => '(1 2 0 3))
-(test (->listof ->nat (insertat 0 l123 3)) => '(1 2 3 0))
 
 (test (->listof (->listof ->nat) (interleave 0 l123))
       => '((0 1 2 3) (1 0 2 3) (1 2 0 3) (1 2 3 0)))
 
+(test (->listof (->listof ->nat) (interleave 0 (cons 1 (cons 2 null))))
+      => '((0 1 2) (1 0 2) (1 2 0)))
+
+
+
 (test (->listof (->listof ->nat) (interleave 0 null)) => '((0)))
 
-(test (->nat (list-len null)) => '0)
-(test (->nat (list-len (cons 3 (cons 2 null)))) => '2)
-
-(test (->bool (zero? (diff (+ 1 0) (list-len (cons 3 null))))) => '#t)
 
 (test (->listof (->listof ->nat) (interleave 0 (cons 3 null)))
       => '((0 3) (3 0)))
