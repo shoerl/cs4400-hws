@@ -98,12 +98,11 @@
   (lambda (lists)
     (if (null? lists)
         lists
-        (with [first (car lists)]
-              (with [rest (cdr lists)]
-                    (if (null? first)
-                        (append* rest)
-                        (cons (car first)
-                              (append* (cons (cdr first) rest)))))))))
+        (with [rest (cdr lists)]
+              (if (null? (car lists))
+                  (append* rest)
+                  (cons (car (car lists))
+                        (append* (cons (cdr (car lists)) rest))))))))
     
 ;; tests
 (test (->listof ->nat (append* null)) => '())
@@ -214,11 +213,10 @@
 (define/rec filter
   (lambda (f list)
     (if (null? list) list
-        (with [first (car list)]
-              (with [next  (filter f (cdr list))]
+        (with [next  (filter f (cdr list))]
               (if (f first)
                   (cons first next)
-                  next))))))
+                  next)))))
 
 ;; tests
 (test (->listof ->nat (filter (lambda (n) #t) l123))
