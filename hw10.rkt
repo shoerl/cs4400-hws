@@ -84,9 +84,7 @@
   (lambda (l1 l2)
     (if (not (null? l1))
         (cons (car l1) (append (cdr l1) l2))
-        (if (not (null? l2))
-            (cons (car l2) (append l1 (cdr l2)))
-            l2))))
+        l2)))
 
 ;; tests
 (test (->listof ->nat (append null null)) => '())
@@ -141,8 +139,6 @@
 ;            (insertat x lis n)
 ;            (cons (insertat x lis n) (interleave-helper x lis (+ n 1)))))))
 
-
-
 (define/rec interleave-helper
   (lambda (x lis n)
     (with [insert (insertat x lis n)]
@@ -182,7 +178,7 @@
   (lambda (list)
     (if (null? list)
         (cons null null)
-        (append* (map (lambda (y) ((interleave (car list)) y))
+        (append* (map (interleave (car list))
                       (permutations (cdr list)))))))
         
 
