@@ -371,19 +371,11 @@
 ;;;    0---2---4
 ;;;
 ;(define simple-graph-2
-<<<<<<< HEAD
 ;  (pair-list (cons 1 3)
 ;             (cons 3 5)
 ;             (cons 3 2)
 ;             (cons 0 2)
 ;             (cons 2 4)
-=======
-;  (pair-list (cons 0 5)
-;             (cons 5 3)
-;             (cons 5 1)
-;             (cons 4 1)
-;             (cons 1 2)
->>>>>>> 920428e117b4f9b9c8b800551c74d04bab99521e
 ;             null))
 ;
 ;(define simple-solution-2 (car (von-koch simple-graph-2)))
