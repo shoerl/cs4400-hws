@@ -361,7 +361,34 @@
 ;;;   3|
 ;;;    |
 ;;;    4
+;;;
+;;; Another simple graph for test purposes:
+;;;
+;;;    1---3---5
+;;;        |   
+;;;        |   
+;;;        |  
+;;;    0---2---4
+;;;
+;(define simple-graph-2
+;  (pair-list (cons 1 3)
+;             (cons 3 5)
+;             (cons 3 2)
+;             (cons 0 2)
+;             (cons 2 4)
+;             null))
 ;
+;(define simple-solution-2 (car (von-koch simple-graph-2)))
+;(test (->listof ->nat simple-solution-2) => '(4 0 1 5 2 3))
+;;; The corresponding graph for the solution:
+;;;
+;;;    0---5---3
+;;;      5 | 2 
+;;;       4|   
+;;;        |  
+;;;    4---1---2
+;;;      3   1
+;;;
 ;#| Finally, this is John's graph.
 ;   Warning: this can take a long time to run -- it is here only if you
 ;   want to try it for yourself, do not submit with it.
