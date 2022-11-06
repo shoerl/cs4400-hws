@@ -9,8 +9,10 @@
    <TOY> ::= <num>
            | <id>
            | { bind {{ <id> <TOY> } ... } <TOY> }
-           | { fun { <id> ... } <TOY> }
+           | { bindrec {{ <id> <TOY> } ... } <TOY> }
+           | { fun { <id> ... }  <TOY> }
            | { if <TOY> <TOY> <TOY> }
+           | { set! <id> <TOY> }
            | { <TOY> <TOY> ... }
 |#
 
@@ -19,8 +21,10 @@
   [Num  Number]
   [Id   Symbol]
   [Bind (Listof Symbol) (Listof TOY) TOY]
+  [BindRec (Listof Symbol) (Listof TOY) TOY]
   [Fun  (Listof Symbol) TOY]
   [Call TOY (Listof TOY)]
+  [Set  Symbol TOY]
   [If   TOY TOY TOY])
 
 (: unique-list? : (Listof Any) -> Boolean)
@@ -36,15 +40,23 @@
   (match sexpr
     [(number: n)    (Num n)]
     [(symbol: name) (Id name)]
-    [(cons 'bind more)
+    [(cons 'set! more)
      (match sexpr
-       [(list 'bind (list (list (symbol: names) (sexpr: nameds))
-                          ...)
-          body)
+       [(list 'set! (symbol: name) (sexpr: expr))
+        (Set name (parse-sexpr expr))]
+       [else (error 'parse-sexpr "bad `set!` syntax in ~s" sexpr)])] 
+    [(cons (and binder (or 'bind 'bindrec)) more)
+     (match sexpr
+       [(list 'bind (list (list (symbol: names) (sexpr: nameds)) ...) body)
         (if (unique-list? names)
-          (Bind names (map parse-sexpr nameds) (parse-sexpr body))
-          (error 'parse-sexpr "duplicate `bind' names: ~s" names))]
-       [else (error 'parse-sexpr "bad `bind' syntax in ~s" sexpr)])]
+            (Bind names (map parse-sexpr nameds) (parse-sexpr body))
+             (error 'parse-sexpr "duplicate `bind' names: ~s"
+             names))]
+       [(list 'bindrec (list (list (symbol: names) (sexpr: nameds)) ...) body)
+        (if (unique-list? names)
+            (BindRec names (map parse-sexpr nameds) (parse-sexpr body))
+            (error 'parse-sexpr "duplicate `bindrec` names: ~s" names))]
+       [else (error 'parse-sexpr "bad `bind` syntax in ~s" sexpr)])]
     [(cons 'fun more)
      (match sexpr
        [(list 'fun (list (symbol: names) ...) body)
@@ -81,8 +93,11 @@
 
 (define-type VAL
   [RktV  Any]
+  [BogusV]
   [FunV  (Listof Symbol) TOY ENV]
   [PrimV ((Listof VAL) -> VAL)])
+
+(define the-bogus-value (BogusV))
 
 (: raw-extend : (Listof Symbol) (Listof (Boxof VAL)) ENV -> ENV)
 ;; extends an environment with a new frame.
@@ -98,6 +113,24 @@
 ;; extends an environment with a new frame.
 (define (extend names values env)
   (raw-extend names (map (inst box VAL) values) env))
+
+(: extend-rec : (Listof Symbol) (Listof TOY) ENV -> ENV)
+;; extends an envionrment with a new frame RECURSIVELY
+(define (extend-rec names toys env)
+  (if (= (length names) (length toys))
+      (let ([fenv (FrameEnv (map (lambda ([thename : Symbol] [thetoy : TOY])
+                                   (list thename (box the-bogus-value))) names toys) env)])
+        (println fenv)
+        (if (= 0 (length names)) env
+            (extend-rec (cdr names) (cdr toys) (extend (list (car names)) (list (eval (car toys) fenv)) env))))
+            
+;        (foldl (lambda ([name : Symbol] [toy : TOY] [env : ENV])
+;                 (extend (list name) (list (eval toy fenv)) env)) names toys list env))
+                                                                        
+
+
+      (error 'extend-rec "arity mismatch for names: ~s" names)))
+  
 
 (: lookup : Symbol ENV -> (Boxof VAL))
 ;; lookup a symbol in an environment, frame by frame,
@@ -159,6 +192,11 @@
     [(Id name) (unbox (lookup name env))]
     [(Bind names exprs bound-body)
      (eval bound-body (extend names (map eval* exprs) env))]
+    [(BindRec names exprs bound-body)
+     (eval bound-body (extend-rec names exprs env))]
+    [(Set name expr)
+     (set-box! (lookup name env) (eval expr env))
+     the-bogus-value]
     [(Fun names bound-body)
      (FunV names bound-body env)]
     [(Call fun-expr arg-exprs)
@@ -183,8 +221,24 @@
   (let ([result (eval (parse str) global-environment)])
     (cases result
       [(RktV v) v]
+      [(BogusV) the-bogus-value]
       [else (error 'run "evaluation returned a bad value: ~s"
                    result)])))
+
+
+
+;; BindRec Tests
+(test (run "{bindrec {{fact {fun {n}
+                              {if {= 0 n}
+                                1
+                                {* n {fact {- n 1}}}}}}}
+              {fact 5}}")
+      => 120)
+
+;; Set Tests
+;; NOTE: We need to test this more, I don't fully understand the notes
+;; about testing this in the assignment handout
+(test (run "{bind {{x 4}} {set! x 3}}") => the-bogus-value)
 
 ;;; ----------------------------------------------------------------
 ;;; Tests
