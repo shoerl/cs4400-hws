@@ -8,21 +8,21 @@
 #| The BNF:
    <TOY> ::= <num>
            | <id>
-           | { bind {{ <id> <TOY> } ... } <TOY> }
-           | { bindrec {{ <id> <TOY> } ... } <TOY> }
-           | { fun { <id> ... }  <TOY> }
-           | { if <TOY> <TOY> <TOY> }
-           | { set! <id> <TOY> }
-           | { <TOY> <TOY> ... }
+           | { <TOY>   <TOY> ... }
+           | { bind    {{ <id> <TOY> } ... } { <TOY> ... } }
+           | { bindrec {{ <id> <TOY> } ... } { <TOY> ... } }
+           | { fun     { <id> ... }          { <TOY> ... } }
+           | { if      <TOY> <TOY> <TOY> }
+           | { set!    <id> <TOY> }
 |#
 
 ;; A matching abstract syntax tree datatype:
 (define-type TOY
   [Num  Number]
   [Id   Symbol]
-  [Bind (Listof Symbol) (Listof TOY) TOY]
-  [BindRec (Listof Symbol) (Listof TOY) TOY]
-  [Fun  (Listof Symbol) TOY]
+  [Bind (Listof Symbol) (Listof TOY) (Listof TOY)]
+  [BindRec (Listof Symbol) (Listof TOY) (Listof TOY)]
+  [Fun  (Listof Symbol) (Listof TOY)]
   [Call TOY (Listof TOY)]
   [Set  Symbol TOY]
   [If   TOY TOY TOY])
@@ -47,23 +47,23 @@
        [else (error 'parse-sexpr "bad `set!` syntax in ~s" sexpr)])] 
     [(cons (and binder (or 'bind 'bindrec)) more)
      (match sexpr
-       [(list 'bind (list (list (symbol: names) (sexpr: nameds)) ...) body)
+       [(list 'bind (list (list (symbol: names) (sexpr: nameds)) ...) body0 body ...)
         (if (unique-list? names)
-            (Bind names (map parse-sexpr nameds) (parse-sexpr body))
+            (Bind names (map parse-sexpr nameds) (map parse-sexpr (cons body0 body)))
              (error 'parse-sexpr "duplicate `bind' names: ~s"
              names))]
-       [(list 'bindrec (list (list (symbol: names) (sexpr: nameds)) ...) body)
+       [(list 'bindrec (list (list (symbol: names) (sexpr: nameds)) ...) body0 body ...)
         (if (unique-list? names)
-            (BindRec names (map parse-sexpr nameds) (parse-sexpr body))
+            (BindRec names (map parse-sexpr nameds) (map parse-sexpr (cons body0 body)))
             (error 'parse-sexpr "duplicate `bindrec` names: ~s" names))]
        [else (error 'parse-sexpr "bad `bind` syntax in ~s" sexpr)])]
     [(cons 'fun more)
      (match sexpr
-       [(list 'fun (list (symbol: names) ...) body)
+       [(list 'fun (list (symbol: names) ...) body0 body ...)
         (if (unique-list? names)
-          (Fun names (parse-sexpr body))
-          (error 'parse-sexpr "duplicate `fun' names: ~s" names))]
-       [else (error 'parse-sexpr "bad `fun' syntax in ~s" sexpr)])]
+            (Fun names (map parse-sexpr (cons body0 body)))
+            (error 'parse-sexpr "duplicate `fun` names: ~s" names))]
+       [else (error 'parse-sexpr "bad `fun` syntax in ~s" sexpr)])]
     [(cons 'if more)
      (match sexpr
        [(list 'if cond then else)
@@ -94,7 +94,7 @@
 (define-type VAL
   [RktV  Any]
   [BogusV]
-  [FunV  (Listof Symbol) TOY ENV]
+  [FunV  (Listof Symbol) (Listof TOY) ENV]
   [PrimV ((Listof VAL) -> VAL)])
 
 (define the-bogus-value (BogusV))
@@ -176,6 +176,12 @@
 ;;; ----------------------------------------------------------------
 ;;; Evaluation
 
+(: eval-body : (Listof TOY) ENV -> VAL)
+(define (eval-body exprs env)
+  (let ([vl (eval (car exprs) env)])
+    (if (null? (cdr exprs)) vl (eval-body (cdr exprs) env))))
+
+
 (: eval : TOY ENV -> VAL)
 ;; evaluates TOY expressions
 (define (eval expr env)
@@ -185,22 +191,22 @@
   (cases expr
     [(Num n)   (RktV n)]
     [(Id name) (unbox (lookup name env))]
-    [(Bind names exprs bound-body)
-     (eval bound-body (extend names (map eval* exprs) env))]
-    [(BindRec names exprs bound-body)
-     (eval bound-body (extend-rec names exprs env))]
+    [(Bind names exprs bound-bodies)
+     (eval-body bound-bodies (extend names (map eval* exprs) env))]
+    [(BindRec names exprs bound-bodies)
+     (eval-body bound-bodies (extend-rec names exprs env))]
     [(Set name expr)
      (set-box! (lookup name env) (eval expr env))
      the-bogus-value]
-    [(Fun names bound-body)
-     (FunV names bound-body env)]
+    [(Fun names bound-bodies)
+     (FunV names bound-bodies env)]
     [(Call fun-expr arg-exprs)
      (let ([fval (eval* fun-expr)]
            [arg-vals (map eval* arg-exprs)])
        (cases fval
          [(PrimV proc) (proc arg-vals)]
-         [(FunV names body fun-env)
-          (eval body (extend names arg-vals fun-env))]
+         [(FunV names bodies fun-env)
+          (eval-body bodies (extend names arg-vals fun-env))]
          [else (error 'eval "function call with a non-function: ~s"
                       fval)]))]
     [(If cond-expr then-expr else-expr)
@@ -222,7 +228,25 @@
 
 
 
+;; Multiple body statements tests
+(test (run "{bind {{make-counter
+                     {fun {}
+                       {bind {{c 0}}
+                         {fun {}
+                           {set! c {+ 1 c}}
+                           c}}}}}
+              {bind {{c1 {make-counter}}
+                     {c2 {make-counter}}}
+                {* {c1} {c1} {c2} {c1}}}}")
+      => 6)
+(test (run "{bindrec {{foo {fun {}
+                             {set! foo {fun {} 2}}
+                             1}}}
+              {+ {foo} {* 10 {foo}}}}")
+      => 21)
+
 ;; BindRec Tests
+;; NOTE: We need to test + support mutually recursive functions
 (test (run "{bindrec {{fact {fun {n}
                               {if {= 0 n}
                                 1
@@ -262,7 +286,7 @@
 
 ;; More tests for complete coverage
 (test (run "{bind x 5 x}")      =error> "bad `bind` syntax in (bind x 5 x)")
-(test (run "{fun x x}")         =error> "bad `fun' syntax")
+(test (run "{fun x x}")         =error> "bad `fun` syntax in (fun x x)")
 (test (run "{if x}")            =error> "bad `if' syntax")
 (test (run "{}")                =error> "bad syntax")
 (test (run "{bind {{x 5} {x 5}} x}") =error> "duplicate*bind*names")
