@@ -114,22 +114,17 @@
 (define (extend names values env)
   (raw-extend names (map (inst box VAL) values) env))
 
+
 (: extend-rec : (Listof Symbol) (Listof TOY) ENV -> ENV)
 ;; extends an envionrment with a new frame RECURSIVELY
 (define (extend-rec names toys env)
   (if (= (length names) (length toys))
       (let ([fenv (FrameEnv (map (lambda ([thename : Symbol] [thetoy : TOY])
                                    (list thename (box the-bogus-value))) names toys) env)])
-        (println fenv)
-        (if (= 0 (length names)) env
-            (extend-rec (cdr names) (cdr toys) (extend (list (car names)) (list (eval (car toys) fenv)) env))))
-            
-;        (foldl (lambda ([name : Symbol] [toy : TOY] [env : ENV])
-;                 (extend (list name) (list (eval toy fenv)) env)) names toys list env))
-                                                                        
-
-
-      (error 'extend-rec "arity mismatch for names: ~s" names)))
+        (for-each (lambda ([nname : Symbol] [ttoy : TOY])
+                    (set-box! (lookup nname fenv) (eval ttoy fenv))) names toys)
+         fenv)
+            (error 'extend-rec "arity mismatch for names: ~s" names)))
   
 
 (: lookup : Symbol ENV -> (Boxof VAL))
@@ -266,7 +261,7 @@
       => 124)
 
 ;; More tests for complete coverage
-(test (run "{bind x 5 x}")      =error> "bad `bind' syntax")
+(test (run "{bind x 5 x}")      =error> "bad `bind` syntax in (bind x 5 x)")
 (test (run "{fun x x}")         =error> "bad `fun' syntax")
 (test (run "{if x}")            =error> "bad `if' syntax")
 (test (run "{}")                =error> "bad syntax")
