@@ -204,7 +204,7 @@
 
 ;;; ----------------------------------------------------------------
 ;;; Evaluation
-
+    
 (: eval-body : (Listof TOY) ENV -> VAL)
 (define (eval-body exprs env)
   (let ([vl (eval (car exprs) env)])
@@ -264,16 +264,40 @@
 ;; returns a proper list of boxes for an rfun.
 ;; throws an error if an argument is a non-identifier.
 (define (get-boxes arg-exprs env)
-  (: eval-ids* : TOY -> VAL)
+  (: eval-ids* : TOY -> (Boxof VAL))
   (define (eval-ids* expr)
     (cases expr
-      [(Id name) (unbox (lookup name env))]
+      [(Id name) (lookup name env)]
       [else (error 'rfun "non-identifier")]))
-  (map (inst box VAL) (map eval-ids* arg-exprs)))
+  (map eval-ids* arg-exprs))
+
 
 ;; ----------------------------------------------------------------
 ;; Tests
 
+(test (run "{bind {{x 4} {y 3}}
+              {bind {{tmpx x}} {set! x y} {set! y tmpx}} {- x y}}")
+      => -1)
+
+(test (run "{bind {{x 4} {y 3}}
+              {{fun {}
+                {bind {{tmpx x}} {set! x y} {set! y tmpx}}}} {- x y}}")
+      => -1)
+
+(test (run "{bind {{x 3} {y 4}}
+              {{fun {}
+                {bind {{tmpx x}} {set! x y} {set! y tmpx}}}} {- x y}}")
+      => 1)
+
+(test (run "{bind {{swap! {rfun {x y}
+                            {bind {{tmpx x} {tmpy y}}
+                              {set! x tmpy}
+                              {set! y tmpx}}}}
+                   {a 1}
+                   {b 2}}
+              {swap! a b}
+              {+ a {* 10 b}}}")
+      => 12)
 
 ;; Multiple body statements tests
 (test (run "{bind {{make-counter
