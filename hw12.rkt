@@ -64,6 +64,27 @@
             (Fun names (map parse-sexpr (cons body0 body)))
             (error 'parse-sexpr "duplicate `fun` names: ~s" names))]
        [else (error 'parse-sexpr "bad `fun` syntax in ~s" sexpr)])]
+;    [(cons 'bind more)
+;     (match sexpr
+;       [(list 'bind (list (list (symbol: names) (sexpr: nameds))
+;                          ...)
+;              body)
+;        (if (unique-list? names)
+;            (Bind names (map parse-sexpr nameds) (parse-sexpr body))
+;            (error 'parse-sexpr "duplicate `bind' names: ~s" names))]
+;       [else (error 'parse-sexpr "bad `bind' syntax in ~s" sexpr)])]
+;    [(or (cons 'fun more)
+;         (cons 'rfun more))
+;     (match sexpr
+;       [(list 'fun (list (symbol: names) ...) body)
+;        (if (unique-list? names)
+;            (Fun names (parse-sexpr body))
+;            (error 'parse-sexpr "duplicate `fun' names: ~s" names))]
+;       [(list 'rfun (list (symbol: names) ...) body)
+;        (if (unique-list? names)
+;            (RFun names (parse-sexpr body))
+;            (error 'parse-sexpr "duplicate `rfun' names: ~s" names))]
+;       [else (error 'parse-sexpr "bad `fun' syntax in ~s" sexpr)])]
     [(cons 'if more)
      (match sexpr
        [(list 'if cond then else)
@@ -109,6 +130,7 @@
               env)
     (error 'extend "arity mismatch for names: ~s" names)))
 
+
 (: extend : (Listof Symbol) (Listof VAL) ENV -> ENV)
 ;; extends an environment with a new frame.
 (define (extend names values env)
@@ -126,6 +148,7 @@
          fenv)
             (error 'extend-rec "arity mismatch for names: ~s" names)))
   
+
 
 (: lookup : Symbol ENV -> (Boxof VAL))
 ;; lookup a symbol in an environment, frame by frame,
@@ -200,6 +223,12 @@
      the-bogus-value]
     [(Fun names bound-bodies)
      (FunV names bound-bodies env)]
+;    [(Bind names exprs bound-body)
+;     (eval bound-body (extend names (map eval* exprs) env))]
+;    [(Fun names bound-body)
+;     (FunV names bound-body env #f)]
+;    [(RFun names bound-body)
+;     (FunV names bound-body env #t)]
     [(Call fun-expr arg-exprs)
      (let ([fval (eval* fun-expr)]
            [arg-vals (map eval* arg-exprs)])
@@ -207,6 +236,13 @@
          [(PrimV proc) (proc arg-vals)]
          [(FunV names bodies fun-env)
           (eval-body bodies (extend names arg-vals fun-env))]
+;         [(FunV names body fun-env by-ref?)
+;          (if by-ref?
+;              ;(eval-body body (raw-extend names
+;              (eval body (raw-extend names
+;                                     (get-boxes arg-exprs env)
+;                                     fun-env))
+;              (eval body (extend names arg-vals fun-env)))]
          [else (error 'eval "function call with a non-function: ~s"
                       fval)]))]
     [(If cond-expr then-expr else-expr)
@@ -227,6 +263,25 @@
                    result)])))
 
 
+(: get-boxes : (Listof TOY) ENV -> (Listof (Boxof VAL)))
+;; I think I implemented this wrong tbh, but can't test it yet
+(define (get-boxes arg-exprs env)
+  (: eval* : TOY -> VAL)
+  (define (eval* expr) (eval expr env))
+  (map (lambda ([val : VAL])
+         ;; assuming this will check for identifier, but maybe not
+         (if (symbol? val)
+             ((inst box VAL) val)
+             (error 'rfun "~s is a non-identifier" val)))
+       (map eval* arg-exprs)))
+
+
+
+
+
+;;; ----------------------------------------------------------------
+;;; Tests
+
 
 ;; Multiple body statements tests
 (test (run "{bind {{make-counter
@@ -239,6 +294,7 @@
                      {c2 {make-counter}}}
                 {* {c1} {c1} {c2} {c1}}}}")
       => 6)
+
 (test (run "{bindrec {{foo {fun {}
                              {set! foo {fun {} 2}}
                              1}}}
@@ -259,11 +315,13 @@
 ;; about testing this in the assignment handout
 (test (run "{bind {{x 4}} {set! x 3}}") => the-bogus-value)
 
-;;; ----------------------------------------------------------------
-;;; Tests
 
 (test (run "{{fun {x} {+ x 1}} 4}")
       => 5)
+
+;(test (run "{{rfun {x} {+ x 1}} 4}")
+;      => 5)
+
 (test (run "{bind {{add3 {fun {x} {+ x 3}}}} {add3 1}}")
       => 4)
 (test (run "{bind {{add3 {fun {x} {+ x 3}}}
@@ -283,6 +341,7 @@
               {fun {x} {fun {y} {+ x y}}}}
              123}")
       => 124)
+
 
 ;; More tests for complete coverage
 (test (run "{bind x 5 x}")      =error> "bad `bind` syntax in (bind x 5 x)")
