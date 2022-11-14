@@ -179,11 +179,21 @@
 
 ;;; ==================================================================
 ;;; compilation
+<<<<<<< HEAD
 
 (: compile-body : (Listof TOY) -> (ENV -> VAL))
 ;; compiles a list of expressions into an expression,
 ;; said expression will run every expression in list of expressions
 ;; and then return the last value.
+=======
+
+(: get-last : (Listof VAL) -> VAL)
+(define (get-last vals)
+  (if (null? (rest vals)) (first vals) (get-last (rest vals))))
+
+(: compile-body : (Listof TOY) -> (ENV -> VAL))
+;; compiles a list of expressions, returns the last value.
+>>>>>>> f25c04e (finished)
 (define (compile-body exprs)
   (: get-last : (Listof VAL) -> VAL)
   (define (get-last vals)
@@ -193,6 +203,13 @@
       (let ([vals (map (lambda ([cexpr : (ENV -> VAL)])
                          (cexpr env)) converted-list)])
         (get-last vals)))))
+<<<<<<< HEAD
+=======
+;; a shorter version that uses `foldl'
+;; (foldl (lambda ([expr : TOY] [old : VAL]) (compile expr env))
+;;        (compile (first exprs) env)
+;;        (rest exprs))
+>>>>>>> f25c04e (finished)
 
 (: compile-get-boxes : (Listof TOY) -> (ENV -> (Listof (Boxof VAL))))
 ;; utility for applying rfun
@@ -280,6 +297,18 @@
               comp-else) env)))])) 
   
                        
+<<<<<<< HEAD
+=======
+;(: run : String -> Any)
+;;; compileuate a TOY program contained in a string
+;(define (run str)
+;  (let ([result ((compile (parse str)) global-environment)])
+;    (cases result
+;      [(RktV v) v]
+;      [else (error 'run "compilation returned a bad value: ~s"
+;                   result)])))
+
+>>>>>>> f25c04e (finished)
 (: run : String -> Any)
 ;; compiles and runs a TOY program contained in a string
 (define (run str)
