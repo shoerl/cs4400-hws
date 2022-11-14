@@ -50,35 +50,27 @@
        [else (error 'parse-sexpr "bad `set!` syntax in ~s" sexpr)])]
     [(cons (and binder (or 'bind 'bindrec)) more)
      (match sexpr
-       [(list 'bind
+       [(list binder
               (list (list (symbol: names) (sexpr: nameds)) ...)
               body0
               body ...)
         (if (unique-list? names)
-            (Bind names
-                  (map parse-sexpr nameds)
-                  (map parse-sexpr (cons body0 body)))
-            (error 'parse-sexpr "duplicate `bind' names: ~s" names))]
-       [(list 'bindrec
-              (list (list (symbol: names) (sexpr: nameds)) ...)
-              body0
-              body ...)
-        (if (unique-list? names)
-            (BindRec names
-                     (map parse-sexpr nameds)
-                     (map parse-sexpr (cons body0 body)))
-            (error 'parse-sexpr "duplicate `bindrec` names: ~s" names))]
+            ((if (eq? binder 'bind)
+                 Bind
+                 BindRec)
+             names
+             (map parse-sexpr nameds)
+             (map parse-sexpr (cons body0 body)))
+            (error 'parse-sexpr "duplicate `~s names: ~s" binder names))]
        [else (error 'parse-sexpr "bad `bind` syntax in ~s" sexpr)])]
     [(cons (and func (or 'fun 'rfun)) more)
      (match sexpr
-       [(list 'fun (list (symbol: names) ...) body0 body ...)
+       [(list func (list (symbol: names) ...) body0 body ...)
         (if (unique-list? names)
-            (Fun names (map parse-sexpr (cons body0 body)))
+            ((if (eq? func 'fun)
+                 Fun
+                 RFun) names (map parse-sexpr (cons body0 body)))
             (error 'parse-sexpr "duplicate `fun` names: ~s" names))]
-       [(list 'rfun (list (symbol: names) ...) body0 body ...)
-        (if (unique-list? names)
-            (RFun names (map parse-sexpr (cons body0 body)))
-            (error 'parse-sexpr "duplicate `rfun` names: ~s" names))]
        [else (error 'parse-sexpr "bad `fun` syntax in ~s" sexpr)])]
     [(cons 'if more)
      (match sexpr
@@ -116,11 +108,11 @@
 ;; extends an environment with a new frame.
 (define (raw-extend names values env)
   (if (= (length names) (length values))
-    (FrameEnv (map (lambda ([name : Symbol] [val : (Boxof VAL)])
-                     (list name val))
-                   names values)
-              env)
-    (error 'extend "arity mismatch for names: ~s" names)))
+      (FrameEnv (map (lambda ([name : Symbol] [val : (Boxof VAL)])
+                       (list name val))
+                     names values)
+                env)
+      (error 'extend "arity mismatch for names: ~s" names)))
 
 (: extend : (Listof Symbol) (Listof VAL) ENV -> ENV)
 ;; extends an environment with a new frame.
@@ -132,29 +124,13 @@
 ;; extends an envionrment with a new frame RECURSIVELY
 (define (extend-rec names toys env)
   (let ([fenv
-             (FrameEnv (map (lambda ([thename : Symbol] [thetoy : TOY])
-                              (list thename (box the-bogus-value)))
-                            names toys) env)])
-        (for-each
-         (lambda ([nname : Symbol] [ttoy : TOY])
-           (set-box! (lookup nname fenv) (eval ttoy fenv))) names toys)
-         fenv))
-  
-;(: extend-rec : (Listof Symbol) (Listof TOY) ENV -> ENV)
-;;; extends an envionrment with a new frame RECURSIVELY
-;(define (extend-rec names toys env)
-;  (if (= (length names) (length toys))
-;      (let ([fenv
-;             (FrameEnv (map (lambda ([thename : Symbol] [thetoy : TOY])
-;                              (list thename (box the-bogus-value)))
-;                            names toys) env)])
-;        (for-each
-;         (lambda ([nname : Symbol] [ttoy : TOY])
-;           (set-box! (lookup nname fenv) (eval ttoy fenv))) names toys)
-;         fenv)
-;      (error 'extend-rec "arity mismatch for names: ~s" names)))
-  
-
+         (FrameEnv (map (lambda ([thename : Symbol] [thetoy : TOY])
+                          (list thename (box the-bogus-value)))
+                        names toys) env)])
+    (for-each
+     (lambda ([nname : Symbol] [ttoy : TOY])
+       (set-box! (lookup nname fenv) (eval ttoy fenv))) names toys)
+    fenv))
 
 (: lookup : Symbol ENV -> (Boxof VAL))
 ;; lookup a symbol in an environment, frame by frame,
@@ -165,8 +141,8 @@
     [(FrameEnv frame rest)
      (let ([cell (assq name frame)])
        (if cell
-         (second cell)
-         (lookup name rest)))]))
+           (second cell)
+           (lookup name rest)))]))
 
 (: unwrap-rktv : VAL -> Any)
 ;; helper for `racket-func->prim-val': unwrap a RktV wrapper in
@@ -185,7 +161,7 @@
 (define (racket-func->prim-val racket-func)
   (define list-func (make-untyped-list-function racket-func))
   (box (PrimV (lambda (args)
-           (RktV (list-func (map unwrap-rktv args)))))))
+                (RktV (list-func (map unwrap-rktv args)))))))
 
 ;; The global environment has a few primitives:
 (: global-environment : ENV)
@@ -232,22 +208,22 @@
      (FunV names bound-bodies env #t)]
     [(Call fun-expr arg-exprs)
      (let ([fval (eval* fun-expr)])
-     (cases fval
-       [(PrimV proc) (proc (map eval* arg-exprs))]
-       [(FunV names bodies fun-env by-ref?)
-        (if by-ref?
-            (eval-body bodies
-                       (raw-extend names (get-boxes arg-exprs env) fun-env))
-            (let ([arg-vals (map eval* arg-exprs)])
-              (eval-body bodies (extend names arg-vals fun-env))))]
-       [else (error 'eval "function call with a non-function: ~s"
+       (cases fval
+         [(PrimV proc) (proc (map eval* arg-exprs))]
+         [(FunV names bodies fun-env by-ref?)
+          (if by-ref?
+              (eval-body bodies
+                         (raw-extend names (get-boxes arg-exprs env) fun-env))
+              (let ([arg-vals (map eval* arg-exprs)])
+                (eval-body bodies (extend names arg-vals fun-env))))]
+         [else (error 'eval "function call with a non-function: ~s"
                       fval)]))] 
     [(If cond-expr then-expr else-expr)
      (eval* (if (cases (eval* cond-expr)
                   [(RktV v) v] ; Racket value => use as boolean
                   [else #t])   ; other values are always true
-              then-expr
-              else-expr))]))
+                then-expr
+                else-expr))]))
 
 (: run : String -> Any)
 ;; evaluate a TOY program contained in a string
@@ -315,17 +291,51 @@
                              1}}}
               {+ {foo} {* 10 {foo}}}}") => 21)
 
+(test (run "{bindrec {{x 6}
+                      {y 3}
+                      {foo {fun {}
+                             {set! x 20}
+                             {set! y 500}}}}
+              {foo} {- y x}}") => 480)
+
 ;; BindRec Tests
-;; NOTE: We need to test + support mutually recursive functions
+;; general test
 (test (run "{bindrec {{fact {fun {n}
                               {if {= 0 n}
                                 1
                                 {* n {fact {- n 1}}}}}}}
               {fact 5}}") => 120)
 
+;; tests recursion with multiple recursive calls in a branch
+(test (run "{bindrec {{fib {fun {n}
+                              {if {< n 2}
+                                n
+                                {+ {fib {- n 1}} {fib {- n 2}}}}}}}
+              {fib 9}}") => 34)
+
+; the two tests below demonstrate mutual recursion and prove
+; that the function works properly.
+(test (run "{bindrec {{is-even {fun {n}
+                              {if {= 0 n}
+                                1
+                                {is-odd {- n 1}}}}}
+                      {is-odd {fun {n}
+                              {if {= 0 n}
+                                0
+                                {is-even {- n 1}}}}}}
+              {is-even 52}}") => 1)
+
+(test (run "{bindrec {{is-even {fun {n}
+                              {if {= 0 n}
+                                1
+                                {is-odd {- n 1}}}}}
+                      {is-odd {fun {n}
+                              {if {= 0 n}
+                                0
+                                {is-even {- n 1}}}}}}
+              {is-even 13}}") => 0)
+
 ;; Set Tests
-;; NOTE: We need to test this more, I don't fully understand the notes
-;; about testing this in the assignment handout
 (test (run "{bind {{x 4}} {set! 0 0}}")
       =error> "bad `set!` syntax in (set! 0 0)")
        
@@ -340,17 +350,15 @@
 (test (run "{{rfun {x} x} {/ 4 0}}") =error> "non-identifier")
 (test (run "{5 {/ 6 0}}") =error> "non-function")
 
-; NOTE: This doesn't work nd I think it is the result of !set failure
-; I could be wrong though, if my get-boxes func is not processing correctly
-;(test (run "{bind {{swap! {rfun {x y}
-;                            {bind {{tmpx x} {tmpy y}}
-;                              {set! x tmpy}
-;                              {set! y tmpx}}}}
-;                   {a 1}
-;                   {b 2}}
-;              {swap! a b}
-;              {+ a {* 10 b}}}")
-;      => 12)
+(test (run "{bind {{swap! {rfun {x y}
+                            {bind {{tmpx x} {tmpy y}}
+                              {set! x tmpy}
+                              {set! y tmpx}}}}
+                   {a 1}
+                   {b 2}}
+              {swap! a b}
+              {+ a {* 10 b}}}")
+      => 12)
 
 (test (run "{bind {{add3 {fun {x} {+ x 3}}}} {add3 1}}") => 4)
 (test (run "{bind {{add3 {fun {x} {+ x 3}}}
