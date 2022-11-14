@@ -95,7 +95,7 @@
 (define-type VAL
   [BogusV]
   [RktV  Any]
-  [FunV  (Listof Symbol) (Listof (ENV -> VAL)) ENV Boolean] ; `byref?' flag
+  [FunV  (Listof Symbol) (ENV -> VAL) ENV Boolean] ; `byref?' flag
   [PrimV ((Listof VAL) -> VAL)])
 
 ;; a single bogus value to use wherever needed
@@ -140,8 +140,8 @@
   ;; note: no need to check the lengths here, since this is only
   ;; called for `bindrec', and the syntax make it impossible to have
   ;; different lengths
-  (for-each (lambda ([name : Symbol] [expr : TOY])
-              (set-box! (lookup name new-env) ((compile expr) new-env)))
+  (for-each (lambda ([name : Symbol] [cexpr : (ENV -> VAL)])
+              (set-box! (lookup name new-env) (cexpr new-env)))
             names exprs)
   new-env)
 
@@ -193,20 +193,21 @@
 ;;; ==================================================================
 ;;; compileuation
 
-(: compile-body : (Listof TOY) ENV -> VAL)
+(: get-last : (Listof VAL) -> VAL)
+(define (get-last vals)
+  (if (null? (rest vals)) (first vals) (get-last (rest vals))))
+
+(: compile-body : (Listof TOY) -> (ENV -> VAL))
 ;; compileuates a list of expressions, returns the last value.
-(define (compile-body exprs env)
-  ;; note: relies on the fact that the body is never empty
-  (let ([1st  ((compile (first exprs)) env)]
-        [rest (rest exprs)])
-    (if (null? rest)
-        1st
-        (compile-body rest env)))
+(define (compile-body exprs)
+  (let ([converted-list (map (lambda (toy) (compile toy)) exprs)])
+    (lambda ([env : ENV])
+      (let ([vals (map (lambda ([cexpr : (ENV -> VAL)]) (cexpr env)) converted-list)])
+        (get-last vals)))))
   ;; a shorter version that uses `foldl'
   ;; (foldl (lambda ([expr : TOY] [old : VAL]) (compile expr env))
   ;;        (compile (first exprs) env)
   ;;        (rest exprs))
-  )
 
 (: compile-get-boxes : (Listof TOY)
    -> (ENV -> (Listof (Boxof VAL))))
@@ -227,7 +228,6 @@
     (lambda (env)
       (map (lambda ([box-getters : (ENV -> (Boxof VAL))])
              (box-getters env)) getters))))
-
 
 (: compile : TOY -> (ENV -> VAL))
 (define (compile expr)
@@ -250,16 +250,18 @@
      (let ([comp-exprs (map compile exprs)]
            [comp-body (compile-body bound-body)])
        (lambda ([env : ENV])
-         (comp-body (extend names (map (caller env) comp-exprs)))))]
+         (comp-body (extend names (map (caller env) comp-exprs) env))))]
     [(BindRec names exprs bound-body)
+     (let ([comp-exprs (map compile exprs)]
+           [comp-body (compile-body bound-body)])
      (lambda ([env : ENV])
-       (compile-body bound-body (extend-rec names exprs env)))]
+       (comp-body (extend-rec names comp-exprs env))))]
     [(Fun names bound-body)
-     (let ([comp-body (compile bound-body)])
+     (let ([comp-body (compile-body bound-body)])
        (lambda ([env : ENV])
          (FunV names comp-body env #f)))]
     [(RFun names bound-body)
-     (let ([comp-body (compile bound-body)])
+     (let ([comp-body (compile-body bound-body)])
        (lambda ([env : ENV])
          (FunV names comp-body env #t)))]
     [(Call fun-expr arg-exprs)
@@ -286,11 +288,11 @@
            [comp-then (compile then-expr)]
            [comp-else (compile else-expr)])
        (lambda ([env : ENV])
-         (if (cases (comp-cond env)
+         ((if (cases (comp-cond env)
                [(RktV v) v] ; Racket value => use as boolean
                [else #t])   ; other values are always true
              comp-then
-             comp-else)))]))  
+             comp-else) env)))])) 
   
                        
 ;(: run : String -> Any)
