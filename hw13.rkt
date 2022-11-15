@@ -95,6 +95,7 @@
 (define-type VAL
   [BogusV]
   [RktV  Any]
+  ;; changed to utilize compiled expressions
   [FunV  (Listof Symbol) (ENV -> VAL) ENV Boolean] ; `byref?' flag
   [PrimV ((Listof VAL) -> VAL)])
 
@@ -120,20 +121,6 @@
 (: extend-rec : (Listof Symbol) (Listof (ENV -> VAL)) ENV -> ENV)
 ;; extends an environment with a new recursive frame (given
 ;; expressions).
-;;
-;; (define (extend-rec names exprs env)
-;;   ;; note: no need to check the lengths here, since this is only
-;;   ;; called for `bindrec', and the syntax make it impossible to have
-;;   ;; different lengths
-;;   (let* ([boxes   (map (lambda (x) (box the-bogus-value)) exprs)]
-;;          [new-env (raw-extend names boxes env)])
-;;     (for-each (lambda ([box : (Boxof VAL)] [expr : TOY])
-;;                 (set-box! box (compile expr new-env)))
-;;               boxes exprs)
-;;     new-env))
-;;
-;; Slightly simpler version, as we've seen in class:
-;;
 (define (extend-rec names exprs env)
   (define new-env
     (extend names (map (lambda (_) the-bogus-value) exprs) env))
@@ -191,26 +178,23 @@
             (EmptyEnv)))
 
 ;;; ==================================================================
-;;; compileuation
-
-(: get-last : (Listof VAL) -> VAL)
-(define (get-last vals)
-  (if (null? (rest vals)) (first vals) (get-last (rest vals))))
+;;; compilation
 
 (: compile-body : (Listof TOY) -> (ENV -> VAL))
-;; compileuates a list of expressions, returns the last value.
+;; compiles a list of expressions into an expression,
+;; said expression will run every expression in list of expressions
+;; and then return the last value.
 (define (compile-body exprs)
+  (: get-last : (Listof VAL) -> VAL)
+  (define (get-last vals)
+    (if (null? (rest vals)) (first vals) (get-last (rest vals))))
   (let ([converted-list (map (lambda (toy) (compile toy)) exprs)])
     (lambda ([env : ENV])
-      (let ([vals (map (lambda ([cexpr : (ENV -> VAL)]) (cexpr env)) converted-list)])
+      (let ([vals (map (lambda ([cexpr : (ENV -> VAL)])
+                         (cexpr env)) converted-list)])
         (get-last vals)))))
-  ;; a shorter version that uses `foldl'
-  ;; (foldl (lambda ([expr : TOY] [old : VAL]) (compile expr env))
-  ;;        (compile (first exprs) env)
-  ;;        (rest exprs))
 
-(: compile-get-boxes : (Listof TOY)
-   -> (ENV -> (Listof (Boxof VAL))))
+(: compile-get-boxes : (Listof TOY) -> (ENV -> (Listof (Boxof VAL))))
 ;; utility for applying rfun
 (define (compile-get-boxes exprs)
   (: compile-getter : TOY -> (ENV -> (Boxof VAL)))
@@ -221,7 +205,7 @@
       [else
        (lambda ([env : ENV])
          (error 'compile
-                "rfun requires ids only. Given: ~s" expr))]))
+                "expression contains non-identifiers: ~s" expr))]))
   (unless (unbox compiler-enabled?)
     (error 'compile "compiler disabled"))
   (let ([getters (map compile-getter exprs)])
@@ -237,6 +221,7 @@
     (lambda (compiled) (compiled env)))
   (unless (unbox compiler-enabled?)
     (error 'compile "compiler disabled"))
+  ;; updated all cases to use pre-compiled expressions
   (cases expr
     [(Num n)
      (lambda ([env : ENV]) (RktV n))]
@@ -254,8 +239,8 @@
     [(BindRec names exprs bound-body)
      (let ([comp-exprs (map compile exprs)]
            [comp-body (compile-body bound-body)])
-     (lambda ([env : ENV])
-       (comp-body (extend-rec names comp-exprs env))))]
+       (lambda ([env : ENV])
+         (comp-body (extend-rec names comp-exprs env))))]
     [(Fun names bound-body)
      (let ([comp-body (compile-body bound-body)])
        (lambda ([env : ENV])
@@ -289,21 +274,12 @@
            [comp-else (compile else-expr)])
        (lambda ([env : ENV])
          ((if (cases (comp-cond env)
-               [(RktV v) v] ; Racket value => use as boolean
-               [else #t])   ; other values are always true
-             comp-then
-             comp-else) env)))])) 
+                [(RktV v) v] ; Racket value => use as boolean
+                [else #t])   ; other values are always true
+              comp-then
+              comp-else) env)))])) 
   
                        
-;(: run : String -> Any)
-;;; compileuate a TOY program contained in a string
-;(define (run str)
-;  (let ([result ((compile (parse str)) global-environment)])
-;    (cases result
-;      [(RktV v) v]
-;      [else (error 'run "compileuation returned a bad value: ~s"
-;                   result)])))
-
 (: run : String -> Any)
 ;; compiles and runs a TOY program contained in a string
 (define (run str)
@@ -363,6 +339,14 @@
 (test (run "{if + 6 7}")        => 6)
 (test (run "{fun {x} x}")       =error> "returned a bad value")
 
+;; testing compiler disabled error
+(test (compile (Num 500)) =error> "compiler disabled")
+(test (compile (Id 'x)) =error> "compiler disabled")
+(test (compile-body (list (Num 500))) =error> "compiler disabled")
+(test (compile-body (list (Id 'x))) =error> "compiler disabled")
+(test (compile-get-boxes (list (Num 500))) =error> "compiler disabled")
+(test (compile-get-boxes (list (Id 'x))) =error> "compiler disabled")
+
 ;; assignment tests
 (test (run "{set! {+ x 1} x}")  =error> "bad `set!' syntax")
 (test (run "{bind {{x 1}} {set! x {+ x 1}} x}") => 2)
@@ -405,8 +389,10 @@
               {+ a {* 10 b}}}")
       => 12)
 
-;; test that argument are not compileuated redundantly
+;; test that argument are not compiled redundantly
 (test (run "{{rfun {x} x} {/ 4 0}}") =error> "non-identifier")
 (test (run "{5 {/ 6 0}}") =error> "non-function")
+
+(define minutes-spent 300)
 
 ;;; ==================================================================
