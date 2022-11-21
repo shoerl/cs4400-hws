@@ -421,6 +421,15 @@
 (test (run "{if + 6 7}")        => 6)
 (test (run "{fun {x} x}")       =error> "returned a bad value")
 
+;; Testing unref and set-ref errors
+(test (run-io "{unref unref unref}") =error> "expecting a reference")
+(test (run-io "{unref {print 'abcde'} 'cba'}") =error> "expecting a reference")
+(test (run-io "{unref {fun {} 1} +}") =error> "expecting a reference")
+
+(test (run-io "{set-ref! set-ref! set-ref!}") =error> "expecting a reference")
+(test (run-io "{set-ref! {print 'abcde'} +}") =error> "expecting a reference")
+(test (run-io "{set-ref! {fun {} 1} +}") =error> "expecting a reference")
+
 ;; Test laziness
 (test (run "{{fun {x} 1} {/ 9 0}}") => 1)
 (test (run "{{fun {x} 1} {{fun {x} {x x}} {fun {x} {x x}}}}") => 1)
