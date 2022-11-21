@@ -132,7 +132,11 @@
 (define-type IO
   [Print    VAL]      ; String
   [ReadLine VAL]      ; receiver: String -> IO
-  [Begin2   VAL VAL]) ; IO IO
+  [Begin2   VAL VAL]  ; IO IO
+  ;; mutation
+  [NewRef   VAL VAL]  ; init, reciever for new ref
+  [UnRef    VAL VAL]  ; ref, reciever for its value
+  [SetRef   VAL VAL]) ; ref, new value
 
 (: extend : (Listof Symbol) (Listof VAL) ENV -> ENV)
 ;; extends an environment with a new frame.
@@ -208,6 +212,10 @@
                   (list 'print  (racket-func->prim-val Print    #f))
                   (list 'read   (racket-func->prim-val ReadLine #f))
                   (list 'begin2 (racket-func->prim-val Begin2   #f))
+                  ;; IO constructors -- mutation
+                  (list 'newref (racket-func->prim-val NewRef #f))
+                  (list 'unref (racket-func->prim-val UnRef #f))
+                  (list 'set-ref! (racket-func->prim-val SetRef #f))
                   ;; values
                   (list 'true  (RktV #t))
                   (list 'false (RktV #f))
@@ -322,6 +330,27 @@
       (eval body (extend names (cons (wrap-in-val (producer)) null) env)))]
     [else (error 'execute-receiver "expecting a receiver function")]))
 
+(: execute-newref : VAL VAL -> Void)
+;; executes a `newref` description
+(define (execute-newref init receiver)
+  (execute-receiver receiver (lambda () (ref init))))
+
+(: execute-unref : VAL VAL -> Void)
+;; executes a `unref` description
+(define (execute-unref reference receiver)
+  (let ([ref-unboxed (cases reference [(RktV x) (and (ref? x) x)] [else #f])])
+    (if ref-unboxed
+        (execute-receiver receiver (lambda () (unref ref-unboxed)))
+        (error 'execute-unref "expecting a reference: ~s" reference))))
+
+(: execute-set-ref : VAL VAL -> Void)
+;; executes a `set-ref` description
+(define (execute-set-ref reference new-val)
+  (let ([ref-unboxed (cases reference [(RktV x) (and (ref? x) x)] [else #f])])
+    (if ref-unboxed
+        (set-ref! ref-unboxed new-val)
+        (error 'execute-set-ref "expecting a reference: ~s" reference))))
+                   
 (: execute-read : VAL -> Void)
 ;; executes a `read' description
 (define (execute-read receiver)
@@ -339,7 +368,10 @@
       (cases io
         [(Print x)    (execute-print (strict x))]
         [(ReadLine x) (execute-read (strict x))]
-        [(Begin2 x y) (execute-begin2 x y)]))))
+        [(Begin2 x y) (execute-begin2 x y)]
+        [(NewRef x y) (execute-newref x (strict y))]
+        [(UnRef x y)  (execute-unref (strict x) (strict y))]
+        [(SetRef x y) (execute-set-ref (strict x) y)]))))
 
 (: run-io : String -> Void)
 ;; evaluate a SLUG program contained in a string, and execute the
@@ -471,14 +503,56 @@
           "What is your email?\n"
           "Your address is 'Foo <foo@bar.com>'\n")
 
-#| uncomment these tests when you have working code
+
+(test
+ (run-io
+ "{bind {{incref {fun {b}
+                   {unref b
+                     {fun {curval}
+                       {set-ref! b {+ 1 curval}}}}}}}
+    {newref 0
+      {fun {i}
+        {begin2
+          {incref i}
+          {begin2
+            {print 'i now holds: '}
+            {unref i
+              {fun {v}
+                {begin2 {print {number->string v}}
+                        {print '\n'}}}}}}}}}")
+ =output> "i now holds: 1\n")
+
+(test
+ (run-io
+ "{with-stx {do {<-}
+                {{do {id <- {f x ...}} next more ...}
+                 {f x ... {fun {id} {do next more ...}}}}
+                {{do expr next more ...}
+                 {begin2 expr {do next more ...}}}
+                {{do expr}
+                 expr}}
+    {bind {{incref {fun {b}
+                     {do {curval <- {unref b}}
+                         {set-ref! b {+ 1 curval}}}}}}
+      {do {i <- {newref 0}}
+          {incref i}
+          {print 'i now holds: '}
+          {v <- {unref i}}
+          {print {number->string v}}
+          {print '\n'}}}}")
+ =output> "i now holds: 1\n")
 
 ;; macros for I/O and refs (note how a `do' block is treated as just a
 ;; value, since it is one)
 (test
  (run-io
   "{with-stx {do {<-}
-                 ???}
+                {{do {id <- {f x ...}} next more ...}
+                 {f x ... {fun {id} {do next more ...}}}}
+                {{do expr next more ...}
+                 {begin2 expr {do next more ...}}}
+                {{do expr}
+                 expr}}
      {bind {{incref   {fun {b}
                         {do {curval <- {unref b}}
                             {set-ref! b {+ 1 curval}}}}}
@@ -492,6 +566,5 @@
            {thrice {do {incref i} {printref i ', '}}}
            {incref i} {printref i '.\n'}}}}")
  =output> "i holds: 1, 2, 3, 4.")
-|#
 
 ;;; ==================================================================
