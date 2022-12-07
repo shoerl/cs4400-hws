@@ -1,5 +1,7 @@
 #lang pl 17
 
+(define minutes-spent 150)
+
 (define-type Token = (U Symbol Integer))
 
 ;; A macro that defines a DFA language
@@ -49,6 +51,7 @@
 (test (div5 "000"))
 (test (div5 (number->string 12345 2)))
 (test (not (div5 (number->string 123453 2))))
+(test (not (div5 "24")))
 
 (define-syntax pushdown
   (syntax-rules (: ->)
